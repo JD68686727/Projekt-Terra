@@ -10,6 +10,9 @@ import { CuttingLaser, BeamResult } from '../weapons/CuttingLaser';
 import { PulseCannon } from '../weapons/PulseCannon';
 import { Progression } from '../progression/Progression';
 import { Sfx } from '../audio/Sfx';
+import { Reactions } from '../world/Reactions';
+import { Emitter } from '../automation/Emitter';
+import { findTarget, TargetResult } from '../automation/targeting';
 import { FixedLoop } from './FixedLoop';
 import { Input } from './Input';
 import { Drone } from './Drone';
@@ -53,6 +56,12 @@ export class Game {
   readonly sfx = new Sfx();
   readonly drone: Drone;
   weapon: WeaponId = 'laser';
+  readonly reactions: Reactions;
+  readonly emitters: Emitter[] = [];
+  /** Laser fires on its own at auto-selected targets. */
+  autoMode = false;
+  private readonly autoTarget: TargetResult = { x: 0, y: 0, found: false };
+  private autoScan = 0;
   readonly perf: PerfStats = { fps: 0, frameMs: 0, simMs: 0, renderMs: 0, terrainMs: 0, uploads: 0, texels: 0, particles: 0, visibleChunks: 0, steps: 0 };
   readonly stats: GameStats = { destroyed: 0, destroyedByMat: new Array(MATERIALS.length).fill(0) };
   paused = false;
@@ -64,6 +73,7 @@ export class Game {
   private readonly beamGfx = new Graphics();
   private readonly droneGfx = new Graphics();
   private readonly waveGfx = new Graphics();
+  private readonly emitterGfx = new Graphics();
   private shake = 0;
   private destroyedThisTick = 0;
   private readonly aim = { x: 0, y: 0 };
@@ -88,6 +98,24 @@ export class Game {
     this.camera.x = this.camera.targetX = this.drone.x;
     this.camera.y = this.camera.targetY = this.drone.y + 20;
 
+    this.reactions = new Reactions(this.world, this.progression.reactionStats());
+    this.reactions.events = {
+      onResonance: (x, y) => {
+        this.progression.earnRf(0.25);
+        this.particles.emit(x + 0.5, y + 0.5, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, Math.random() < 0.5 ? 0xffffff : 0x7ff0ff, 0.45, 0.8, 0, true);
+        this.sfx.resonance();
+      },
+      onBlast: (x, y, r) => {
+        this.shake = Math.min(3, this.shake + 0.35);
+        this.sfx.blast();
+        for (let i = 0; i < 10; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const v = 20 + Math.random() * 30 * r * 0.3;
+          this.particles.emit(x, y, Math.cos(a) * v, Math.sin(a) * v, i % 3 ? 0xff8a2a : 0xffe0a0, 0.35 + Math.random() * 0.2, 0.8, 20, true);
+        }
+      },
+    };
+    this.world.onHit = (x, y, m) => this.reactions.onHit(x, y, m);
     this.terrain = new TerrainRenderer(this.world);
     this.particles = new Particles(900);
 
@@ -95,6 +123,7 @@ export class Game {
     this.scene.addChild(this.terrain.container);
     this.scene.addChild(this.particles.container);
     this.scene.addChild(this.waveGfx);
+    this.scene.addChild(this.emitterGfx);
     this.scene.addChild(this.beamGfx);
     this.scene.addChild(this.droneGfx);
     app.stage.addChild(this.scene);
@@ -131,7 +160,27 @@ export class Game {
     this.laser.stats = this.progression.laserStats();
     this.pulse.stats = this.progression.pulseStats();
     this.drone.speed = this.progression.droneSpeed();
+    this.reactions.stats = this.progression.reactionStats();
+    const es = this.progression.emitterStats();
+    for (const e of this.emitters) e.setStats(es);
+    if (!this.progression.autoTargetUnlocked()) this.autoMode = false;
     if (!this.progression.pulseUnlocked() && this.weapon === 'pulse') this.weapon = 'laser';
+  }
+
+  toggleAuto(): boolean {
+    if (!this.progression.autoTargetUnlocked()) return false;
+    this.autoMode = !this.autoMode;
+    if (this.autoMode) this.weapon = 'laser';
+    return true;
+  }
+
+  /** Places an emitter at the rig. At capacity, the oldest one is relocated. */
+  placeEmitter(): boolean {
+    const max = this.progression.maxEmitters();
+    if (max === 0) return false;
+    if (this.emitters.length >= max) this.emitters.shift();
+    this.emitters.push(new Emitter(this.drone.x, this.drone.y, this.progression.emitterStats()));
+    return true;
   }
 
   selectWeapon(w: WeaponId): boolean {
@@ -169,6 +218,7 @@ export class Game {
     this.drawDrone();
     this.drawBeam();
     this.drawWaves();
+    this.drawEmitters();
     this.sfx.laser(this.firing && this.weapon === 'laser' && !this.paused, this.progression.level('laserDamage'), this.beam.hit);
 
     const r0 = performance.now();
@@ -197,6 +247,11 @@ export class Game {
     if (this.input.wasPressed('Digit1')) this.selectWeapon('laser');
     if (this.input.wasPressed('Digit2')) this.selectWeapon('pulse');
     if (this.input.wasPressed('KeyQ')) this.selectWeapon(this.weapon === 'laser' ? 'pulse' : 'laser');
+    if (this.input.wasPressed('KeyT') && !this.toggleAuto()) this.sfx.denied();
+    if (this.input.wasPressed('KeyE')) {
+      if (this.placeEmitter()) this.sfx.purchase();
+      else this.sfx.denied();
+    }
     this.camera.screenToWorld(this.input.pointerX, this.input.pointerY, this.aim);
   }
 
@@ -230,13 +285,31 @@ export class Game {
       }
     }
     this.pulse.update(this.world, h);
+    for (const e of this.emitters) e.update(this.world, h, this.progression.materialAware());
+    // Auto mode: laser fires by itself at scanned targets unless the player aims manually.
+    let tx = this.aim.x;
+    let ty = this.aim.y;
+    if (this.autoMode && this.weapon === 'laser' && !this.firing) {
+      const t = this.autoTarget;
+      const lost = t.found && this.world.getMat(Math.floor(t.x), Math.floor(t.y)) === Mat.Air;
+      if (lost || ++this.autoScan >= 8) {
+        this.autoScan = 0;
+        findTarget(this.world, this.drone.x, this.drone.y, this.laser.stats.range, 48, this.progression.materialAware(), t);
+      }
+      if (t.found) {
+        tx = t.x;
+        ty = t.y;
+        this.firing = true;
+      }
+    }
     if (this.firing && this.weapon === 'laser') {
-      this.laser.fire(this.world, this.drone.x, this.drone.y, this.aim.x, this.aim.y, h, this.beam);
+      this.laser.fire(this.world, this.drone.x, this.drone.y, tx, ty, h, this.beam);
       if (this.beam.hit && hash01(Math.floor(this.time * 60), 7, 1) < 0.6) {
         const c = Math.random() < 0.5 ? 0xffc060 : 0xff7a1a;
         this.particles.emit(this.beam.endX, this.beam.endY, (Math.random() - 0.5) * 40, -Math.random() * 30, c, 0.25 + Math.random() * 0.2, 0.5, 30, true);
       }
     }
+    this.reactions.update();
     this.particles.update(h);
     if (this.destroyedThisTick > 12) this.shake = Math.min(3, this.shake + this.destroyedThisTick * 0.004);
   }
@@ -246,6 +319,7 @@ export class Game {
     this.stats.destroyed++;
     this.stats.destroyedByMat[m]++;
     this.progression.earn(def.value);
+    this.reactions.onDestroyed(x, y, m);
     this.destroyedThisTick++;
     this.sfx.cellBreak(def.value >= 8);
     // Fewer particles per cell during mass destruction keeps the pool readable.
@@ -262,6 +336,21 @@ export class Game {
         70,
         def.emissive,
       );
+    }
+  }
+
+  private drawEmitters(): void {
+    const g = this.emitterGfx;
+    g.clear();
+    for (const e of this.emitters) {
+      if (e.firing && e.beam.hit && !this.paused) {
+        g.moveTo(e.x, e.y).lineTo(e.beam.endX, e.beam.endY).stroke({ width: 0.9, color: 0x29d8f0, alpha: 0.35 });
+        g.moveTo(e.x, e.y).lineTo(e.beam.endX, e.beam.endY).stroke({ width: 0.3, color: 0xdfffff, alpha: 0.95 });
+        g.circle(e.beam.endX, e.beam.endY, 0.8).fill({ color: 0x9ff4ff, alpha: 0.7 });
+      }
+      g.rect(e.x - 1, e.y - 1, 2, 2).fill(0x1b2433);
+      g.rect(e.x - 1, e.y - 1, 2, 0.4).fill(0x4a5a74);
+      g.rect(e.x - 0.4, e.y - 0.4, 0.8, 0.8).fill(e.firing ? 0x29d8f0 : 0x335566);
     }
   }
 

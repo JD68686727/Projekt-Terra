@@ -5,6 +5,7 @@ import { MATERIALS, Mat } from '../../src/world/materials';
 import { Progression } from '../../src/progression/Progression';
 import { CuttingLaser } from '../../src/weapons/CuttingLaser';
 import { UPGRADES } from '../../src/progression/upgrades';
+import { Reactions } from '../../src/world/Reactions';
 
 /**
  * Pacing probe: a simple bot digs downward with the laser (sweeping its aim)
@@ -16,7 +17,13 @@ function simulate(seconds: number) {
   generateWorld(w, { skyFraction: 0.2 });
   const p = new Progression();
   const laser = new CuttingLaser(p.laserStats());
-  w.onDestroy = (_x, _y, m: Mat) => p.earn(MATERIALS[m].value);
+  const r = new Reactions(w, p.reactionStats());
+  r.events.onResonance = () => p.earnRf(0.25);
+  w.onHit = (x, y, m) => r.onHit(x, y, m);
+  w.onDestroy = (x, y, m: Mat) => {
+    p.earn(MATERIALS[m].value);
+    r.onDestroyed(x, y, m);
+  };
   let x = 128.5;
   let y = surfaceY(128, w, 0.2) - 4;
   const out = { endX: 0, endY: 0, hit: false };
@@ -28,6 +35,7 @@ function simulate(seconds: number) {
     x = 128.5 + Math.sin(t * 0.06) * 100;
     const sweep = Math.sin(t * 1.3) * 40;
     laser.fire(w, x, y, x + sweep, y + 60, dt, out);
+    r.update();
     // Descend through the shaft as it opens.
     if (w.getMat(Math.floor(x), Math.floor(y + 2)) === Mat.Air && y < 240) y += 0.2;
     if (i % 30 === 0) {
@@ -35,6 +43,7 @@ function simulate(seconds: number) {
       if (cheapest) {
         p.buy(cheapest.id);
         laser.stats = p.laserStats();
+        r.stats = p.reactionStats();
         timeline.push({ t, id: cheapest.id });
       }
     }
@@ -51,10 +60,10 @@ describe('early-game pacing', () => {
     expect(timeline[0]?.t ?? Infinity).toBeLessThan(20);
   });
 
-  it('4-15 upgrades in the first 2 minutes', () => {
+  it('4-20 upgrades in the first 2 minutes', () => {
     const n = timeline.filter((e) => e.t < 120).length;
     expect(n).toBeGreaterThanOrEqual(4);
-    expect(n).toBeLessThanOrEqual(15);
+    expect(n).toBeLessThanOrEqual(20);
   });
 
   it('pulse cannon unlocks between 1.5 and 5 minutes', () => {
@@ -62,8 +71,19 @@ describe('early-game pacing', () => {
     expect(unlockAt).toBeLessThan(300);
   });
 
+  it('auto-targeting (first RF unlock) between 1.5 and 5 minutes', () => {
+    const t = timeline.find((e) => e.id === 'autoTarget')?.t ?? Infinity;
+    expect(t).toBeGreaterThan(90);
+    expect(t).toBeLessThan(300);
+  });
+
+  it('emitter not before 2.5 minutes', () => {
+    const t = timeline.find((e) => e.id === 'emitterUnlock')?.t ?? Infinity;
+    expect(t).toBeGreaterThan(150);
+  });
+
   it('logs the timeline', () => {
-    console.log(timeline.map((e) => `${e.t.toFixed(0)}s ${e.id}`).join(', '), '| MP total', Math.round(p.totalMp));
+    console.log(timeline.map((e) => `${e.t.toFixed(0)}s ${e.id}`).join(', '), '| MP total', Math.round(p.totalMp), '| RF total', Math.round(p.totalRf));
     expect(timeline.length).toBeGreaterThan(0);
   });
 });

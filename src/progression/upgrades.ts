@@ -8,9 +8,17 @@ export type UpgradeId =
   | 'pulseUnlock'
   | 'pulseDamage'
   | 'pulseRadius'
-  | 'pulseCooldown';
+  | 'pulseCooldown'
+  | 'resonanceDepth'
+  | 'oreVolatility'
+  | 'autoTarget'
+  | 'smartTarget'
+  | 'emitterUnlock'
+  | 'emitterCount'
+  | 'emitterPower';
 
-export type UpgradeGroup = 'laser' | 'pulse' | 'core';
+export type UpgradeGroup = 'laser' | 'pulse' | 'resonance' | 'auto' | 'core';
+export type Currency = 'mp' | 'rf';
 
 export interface UpgradeDef {
   readonly id: UpgradeId;
@@ -20,6 +28,8 @@ export interface UpgradeDef {
   readonly baseCost: number;
   readonly growth: number;
   readonly maxLevel: number;
+  /** Defaults to Material Points. */
+  readonly currency?: Currency;
   /** Must own at least level 1 of this upgrade to buy. */
   readonly requires?: UpgradeId;
 }
@@ -29,6 +39,13 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'laserWidth', group: 'laser', name: 'Strahlbreite', desc: '+1 Strahlbahn', baseCost: 400, growth: 3.2, maxLevel: 6 },
   { id: 'laserRange', group: 'laser', name: 'Reichweite', desc: '+12 Zellen', baseCost: 70, growth: 2.1, maxLevel: 8 },
   { id: 'laserPierce', group: 'laser', name: 'Durchschlag', desc: '+1 Zelle gleichzeitig', baseCost: 500, growth: 3.0, maxLevel: 5 },
+  { id: 'resonanceDepth', group: 'resonance', name: 'Resonanz-Reichweite', desc: '+4 Kettenglieder durch Kristalladern', baseCost: 550, growth: 1.9, maxLevel: 10 },
+  { id: 'oreVolatility', group: 'resonance', name: 'Erz-Instabilität', desc: 'Erz explodiert öfter und größer', baseCost: 450, growth: 1.85, maxLevel: 8 },
+  { id: 'autoTarget', group: 'auto', name: 'Auto-Zielerfassung', desc: 'Laser zielt selbst [T]', baseCost: 10, growth: 1, maxLevel: 1, currency: 'rf' },
+  { id: 'smartTarget', group: 'auto', name: 'Materialerkennung', desc: 'Automatik bevorzugt wertvolles Material', baseCost: 1800, growth: 1, maxLevel: 1, requires: 'autoTarget' },
+  { id: 'emitterUnlock', group: 'auto', name: 'Laser-Emitter', desc: 'Stationärer Auto-Laser [E] platziert', baseCost: 25, growth: 1, maxLevel: 1, currency: 'rf' },
+  { id: 'emitterCount', group: 'auto', name: 'Emitter-Slots', desc: '+1 Emitter', baseCost: 40, growth: 1.8, maxLevel: 5, currency: 'rf', requires: 'emitterUnlock' },
+  { id: 'emitterPower', group: 'auto', name: 'Emitter-Leistung', desc: '+30 % Emitter-Schaden', baseCost: 700, growth: 1.75, maxLevel: 20, requires: 'emitterUnlock' },
   { id: 'mpMultiplier', group: 'core', name: 'MP-Raffinerie', desc: '+25 % Material Points', baseCost: 500, growth: 2.4, maxLevel: 15 },
   { id: 'droneSpeed', group: 'core', name: 'Antrieb', desc: '+15 % Fluggeschwindigkeit', baseCost: 150, growth: 2.2, maxLevel: 6 },
   { id: 'pulseUnlock', group: 'pulse', name: 'Pulse Cannon', desc: 'Schaltet die Schockwellen-Kanone frei [2]', baseCost: 1500, growth: 1, maxLevel: 1 },

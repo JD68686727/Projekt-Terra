@@ -133,3 +133,56 @@ test('upgrade purchase increases laser power; pulse cannon unlocks and destroys 
   expect(after - before).toBeGreaterThan(20);
   expect(errors).toEqual([]);
 });
+
+test('resonance chain consumes a crystal vein and awards RF', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page);
+  // Find a crystal cell with crystal neighbours and hit it through the world API.
+  const res = await page.evaluate(() => {
+    const g = window.__game!;
+    const w = g.world;
+    for (let y = 0; y < w.height; y++)
+      for (let x = 1; x < w.width - 1; x++)
+        if (w.getMat(x, y) === 3 && w.getMat(x + 1, y) === 3 && w.getMat(x - 1, y) === 3) {
+          w.damage(x, y, 1);
+          return { x, y };
+        }
+    return null;
+  });
+  expect(res).not.toBeNull();
+  await page.waitForTimeout(1500);
+  const r = await page.evaluate(() => ({ rf: window.__game!.progression.rf, resonated: window.__game!.reactions.resonated }));
+  expect(r.resonated).toBeGreaterThan(3);
+  expect(r.rf).toBeGreaterThan(0.5);
+  await expect(page.locator('#hud-rf')).not.toHaveText('0 RF');
+  expect(errors).toEqual([]);
+});
+
+test('auto-targeting and emitter mine without player input', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page);
+  await page.evaluate(() => {
+    const p = window.__game!.progression;
+    p.earn(5000);
+    p.earnRf(100);
+  });
+  await page.keyboard.press('KeyU');
+  await page.locator('#buy-autoTarget').click();
+  await page.locator('#buy-emitterUnlock').click();
+  await page.keyboard.press('KeyU');
+  // Fly down close to the ground so targets are in range.
+  await page.keyboard.down('KeyS');
+  await page.waitForTimeout(900);
+  await page.keyboard.up('KeyS');
+  await page.keyboard.press('KeyE');
+  expect(await page.evaluate(() => window.__game!.emitters.length)).toBe(1);
+  await page.keyboard.press('KeyT');
+  expect(await page.evaluate(() => window.__game!.autoMode)).toBe(true);
+  const before = await page.evaluate(() => window.__game!.stats.destroyed);
+  await page.waitForTimeout(2500);
+  const after = await page.evaluate(() => window.__game!.stats.destroyed);
+  expect(after - before).toBeGreaterThan(10);
+  expect(await page.evaluate(() => window.__game!.emitters[0].firing)).toBe(true);
+  await page.screenshot({ path: 'test-results/automation.png' });
+  expect(errors).toEqual([]);
+});

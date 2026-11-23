@@ -42,6 +42,8 @@ export class World {
   readonly seed: number;
   private readonly dirtyList: Chunk[] = [];
   onDestroy: DestroyListener | null = null;
+  /** Called for every damage application on a solid cell (before hp check). */
+  onHit: DestroyListener | null = null;
 
   constructor(width: number, height: number, seed: number) {
     if (width % CHUNK_SIZE || height % CHUNK_SIZE) {
@@ -108,6 +110,7 @@ export class World {
     const i = ((y & CHUNK_MASK) << CHUNK_SHIFT) | (x & CHUNK_MASK);
     const m = c.mat[i] as Mat;
     if (m === Mat.Air) return Mat.Air;
+    this.onHit?.(x, y, m);
     const hp = c.hp[i];
     c.modified = true;
     this.markDirty(c, y & CHUNK_MASK);

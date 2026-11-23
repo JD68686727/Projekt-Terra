@@ -142,6 +142,46 @@ export class Sfx {
     n.start(now, 0, 0.45);
   }
 
+  private lastChime = 0;
+
+  /** Glassy chime for resonance; heavily rate-limited (chains hit many cells). */
+  resonance(): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    if (now - this.lastChime < 0.06) return;
+    this.lastChime = now;
+    const o = this.ctx.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = 1200 + Math.random() * 900;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.12, now + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+    o.connect(g).connect(this.master!);
+    o.start(now);
+    o.stop(now + 0.32);
+  }
+
+  private lastBlast = 0;
+
+  blast(): void {
+    if (!this.ctx || !this.noise) return;
+    const now = this.ctx.currentTime;
+    if (now - this.lastBlast < 0.07) return;
+    this.lastBlast = now;
+    const n = this.ctx.createBufferSource();
+    n.buffer = this.noise;
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(1800, now);
+    lp.frequency.exponentialRampToValueAtTime(150, now + 0.25);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.4, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+    n.connect(lp).connect(g).connect(this.master!);
+    n.start(now, Math.random() * 0.5, 0.3);
+  }
+
   purchase(): void {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;

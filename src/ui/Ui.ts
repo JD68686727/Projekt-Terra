@@ -10,7 +10,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 }
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('de-DE');
-const GROUP_LABEL: Record<UpgradeGroup, string> = { laser: 'SCHNEIDLASER', pulse: 'PULSE CANNON', core: 'SYSTEME' };
+const GROUP_LABEL: Record<UpgradeGroup, string> = { laser: 'SCHNEIDLASER', pulse: 'PULSE CANNON', resonance: 'RESONANZ', auto: 'AUTOMATION', core: 'SYSTEME' };
 
 interface UpgradeRow {
   id: UpgradeId;
@@ -28,6 +28,7 @@ export class Ui {
   private readonly perf: HTMLElement;
   private readonly mpEl: HTMLElement;
   private readonly infoEl: HTMLElement;
+  private readonly rfEl: HTMLElement;
   private readonly weaponBar: HTMLElement;
   private readonly weaponBtns = new Map<WeaponId, HTMLButtonElement>();
   private readonly pulseCd: HTMLElement;
@@ -52,7 +53,8 @@ export class Ui {
     const hint = el('div', 'hint');
     hint.innerHTML =
       'WASD / Pfeiltasten: Drohne steuern · Maus / Leertaste: Feuern<br>' +
-      '1 / 2 / Q: Waffe · U: Upgrades · Mausrad: Zoom<br>Esc: Pause · M: Ton · F3: Performance';
+      '1 / 2 / Q: Waffe · U: Upgrades · T: Auto-Laser · E: Emitter<br>Mausrad: Zoom · Esc: Pause · M: Ton · F3: Performance<br>' +
+      '<span style="color:#29d8f0">Laser auf Kristalle → Kettenreaktion → Resonance Fragments</span>';
     m.append(hint, el('div', 'hint', `v${GAME_VERSION}`));
     this.menu.append(m);
 
@@ -82,7 +84,9 @@ export class Ui {
     this.mpEl = el('div', 'hud-mp', '0 MP');
     this.mpEl.id = 'hud-mp';
     this.infoEl = el('div', 'hud-info');
-    panel.append(el('div', 'hud-label', 'MATERIAL POINTS'), this.mpEl, this.infoEl);
+    this.rfEl = el('div', 'hud-rf', '0 RF');
+    this.rfEl.id = 'hud-rf';
+    panel.append(el('div', 'hud-label', 'MATERIAL POINTS'), this.mpEl, this.rfEl, this.infoEl);
     this.hud.append(panel);
 
     // Weapon bar
@@ -105,6 +109,18 @@ export class Ui {
       e.stopPropagation();
       this.toggleUpgrades();
     });
+    for (const [id, label, act] of [
+      ['btn-auto', 'T AUTO', () => this.game?.toggleAuto()],
+      ['btn-emitter', 'E EMITTER', () => this.game?.placeEmitter()],
+    ] as const) {
+      const b = el('button', 'weapon-btn', label);
+      b.id = id;
+      b.addEventListener('pointerdown', (e) => {
+        e.stopPropagation();
+        if (!act()) this.game?.sfx.denied();
+      });
+      this.weaponBar.append(b);
+    }
     this.muteBtn = el('button', 'weapon-btn', '♪');
     this.muteBtn.title = 'Ton an/aus (M)';
     this.muteBtn.addEventListener('pointerdown', (e) => {
@@ -204,8 +220,14 @@ export class Ui {
     this.lastHud = now;
     const pr = game.progression;
     this.mpEl.textContent = `${fmt(pr.mp)} MP`;
+    this.rfEl.textContent = `${fmt(pr.rf)} RF`;
     const depth = Math.max(0, Math.floor(game.drone.y - game.world.height * 0.2));
-    this.infoEl.textContent = `Zerstört: ${fmt(game.stats.destroyed)} · Tiefe: ${depth} m`;
+    const em = pr.maxEmitters();
+    this.infoEl.textContent = `Zerstört: ${fmt(game.stats.destroyed)} · Tiefe: ${depth} m` + (em ? ` · Emitter ${game.emitters.length}/${em}` : '');
+    const autoBtn = this.root.querySelector('#btn-auto')!;
+    autoBtn.classList.toggle('locked', !pr.autoTargetUnlocked());
+    autoBtn.classList.toggle('active', game.autoMode);
+    this.root.querySelector('#btn-emitter')!.classList.toggle('locked', em === 0);
 
     for (const [id, b] of this.weaponBtns) {
       b.classList.toggle('active', game.weapon === id);
@@ -225,7 +247,8 @@ export class Ui {
       r.level.textContent = ` ${lvl}`;
       r.root.classList.toggle('hidden', state === 'locked');
       r.cost.disabled = state !== 'ok';
-      r.cost.textContent = state === 'maxed' ? 'MAX' : `${fmt(pr.cost(r.id))} MP`;
+      r.cost.textContent = state === 'maxed' ? 'MAX' : `${fmt(pr.cost(r.id))} ${pr.currency(r.id).toUpperCase()}`;
+      r.cost.classList.toggle('rf', pr.currency(r.id) === 'rf');
     }
     this.root.querySelector('#btn-upgrades')!.classList.toggle('glow', affordable > 0);
 

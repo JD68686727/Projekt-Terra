@@ -199,3 +199,9 @@ html, body {
 .upgrade-buy:not(:disabled):hover { background: rgba(255, 138, 42, 0.35); }
 .setting { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; color: var(--muted); font-size: 12px; letter-spacing: 0.15em; }
 .hud-info { font-size: 12px; color: var(--muted); }
+.hud-rf { color: var(--cyan); font-size: 14px; }
+.upgrade-buy.rf { border-color: var(--cyan); background: rgba(41, 216, 240, 0.15); }
+@media (max-width: 640px) {
+  .weapon-bar { flex-wrap: wrap; justify-content: center; width: calc(100vw - 20px); }
+  .weapon-btn { padding: 8px 10px; font-size: 11px; }
+}
