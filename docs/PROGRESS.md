@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-11-23 — M6 complete (release candidate 0.9.0)
+- Pacing: per-core resonance shields ×1/×3/×6 (damage divisor on Core Material) → bot cores at 18.4 / 29.3 / 43.3 min (gaps 11 / 14 min, pinned by test). Scanner shows core index and shield.
+- Touch: virtual joystick (coarse pointers / first touch), merged into Input; phones start at zoom 5.
+- Renderer upload budget (≤48 chunks/frame, visible first, rest re-queued).
+- Polish: pulsing core shield rings, ending text.
+- Release: `npm run package` → validated zip (13 files, 0.59 MB raw, 0.18 MB zip), README, RELEASE_NOTES, integration doc (iframe sandbox notes).
+- Tests: 100 unit, 15 e2e (Chromium, incl. emulated mobile touch). Bench 1024×2048: sim 0.35 ms avg / 0.7 p95, render 0.72 ms.
+
 ## 2026-11-23 — M5 complete (full game loop)
 - Weapons: Drill Missile (tunnels, too-hard stop, splitting children, wide head), Nano Swarm (deterministic leashed miners, ≤8 searches/tick), Fracture Charge (fuse, energy-limited 8-connected crack front with deterministic jitter, crystal conducts, ≤350 cells/tick, safety cap).
 - 13 new upgrades (drill/nano/fracture families), weapon bar 1–5 + Q cycling; locked weapons hidden.

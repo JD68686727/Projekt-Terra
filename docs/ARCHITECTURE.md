@@ -32,3 +32,10 @@ src/
 ## Platform
 - Vite `base: './'` → works under any sub-path and in iframes. No CDN, no backend.
 - Input listeners are on the canvas (wheel/touch `preventDefault`), so the embedding page does not scroll.
+
+## Additions M3–M6
+- `world/Reactions.ts` bounded resonance/ore chain processor; `world/generator.ts` pure generation (+ cores, vaults, core shields), `workers/worldgen.worker.ts`.
+- `automation/` targeting + emitters; `weapons/` drill, nano, fracture.
+- `storage/` versioned save format (v2) + IndexedDB store with backup rotation.
+- Renderer upload budget: ≤48 chunks per frame, visible chunks first; remaining chunks re-queued.
+- `ui/TouchStick.ts` virtual joystick (axis merged into `Input.stick`).

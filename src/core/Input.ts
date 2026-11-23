@@ -7,6 +7,8 @@ export class Input {
   fire = false;
   /** Pointer is a touch pointer (affects controls). */
   touch = false;
+  /** Virtual stick axis (touch), each component in [-1, 1]. */
+  readonly stick = { x: 0, y: 0 };
   /** A primary press happened since the last consumeClick() (survives taps shorter than a frame). */
   private clicked = false;
   /** Accumulated wheel delta since last consume. */

@@ -252,7 +252,8 @@ test('destroying all resonance cores shows the final screen; new world grants pr
       const c = g.cores[idx].site;
       for (let y = c.y - c.radius; y <= c.y + c.radius; y++)
         for (let x = c.x - c.radius; x <= c.x + c.radius; x++)
-          if (g.world.getMat(x, y) === 6) g.world.damage(x, y, 65535);
+          // Shielded cores need several hits.
+          for (let k = 0; k < 20 && g.world.getMat(x, y) === 6; k++) g.world.damage(x, y, 65535);
     }, i);
   expect(await page.evaluate(() => window.__game!.cores.length)).toBe(3);
   await destroyCore(0);
@@ -348,4 +349,28 @@ test('reset progress requires confirmation and clears the save', async ({ page }
   await page.waitForLoadState('load');
   await expect(page.locator('#btn-play')).toHaveText('SPIELEN');
   await expect(page.locator('#btn-continue')).toBeHidden();
+});
+
+test.describe('touch device', () => {
+  test.use({ viewport: { width: 390, height: 780 }, hasTouch: true, isMobile: true });
+
+  test('virtual stick appears and flies the drone', async ({ page }) => {
+    const errors = collectErrors(page);
+    await start(page);
+    const stick = page.locator('#touch-stick');
+    await expect(stick).toBeVisible();
+    await page.screenshot({ path: 'test-results/mobile-play.png' });
+    const x0 = await page.evaluate(() => window.__game!.drone.x);
+    const b = (await stick.boundingBox())!;
+    const cx = b.x + b.width / 2;
+    const cy = b.y + b.height / 2;
+    await stick.dispatchEvent('pointerdown', { pointerId: 7, pointerType: 'touch', clientX: cx, clientY: cy, isPrimary: true });
+    await stick.dispatchEvent('pointermove', { pointerId: 7, pointerType: 'touch', clientX: cx + 60, clientY: cy, isPrimary: true });
+    await page.waitForTimeout(700);
+    await stick.dispatchEvent('pointerup', { pointerId: 7, pointerType: 'touch', clientX: cx + 60, clientY: cy, isPrimary: true });
+    const x1 = await page.evaluate(() => window.__game!.drone.x);
+    expect(x1).toBeGreaterThan(x0 + 3);
+    expect(await page.evaluate(() => window.__game!.input.stick.x)).toBe(0);
+    expect(errors).toEqual([]);
+  });
 });

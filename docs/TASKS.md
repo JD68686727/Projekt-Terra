@@ -1,8 +1,7 @@
-# Tasks — next (M6: release preparation)
+# Tasks — open
 
-1. Pacing: widen gaps between cores 2 and 3 (e.g. deeper-tier material hardness or steeper late costs); re-run `tests/unit/pacing-core.test.ts`.
-2. Touch controls: on-screen joystick for flying; test on a real phone.
-3. Visual/audio polish: core glow/pulse, scanner ping, ambient drone loop, credits/ending text.
-4. Performance: measure on real GPUs (desktop + mobile), particle/quality presets, texture upload budget per frame.
-5. Cross-browser: run Playwright with Firefox + WebKit locally (`npx playwright install`), fix issues.
-6. Release packaging: final name, icons, `dist/` zip, release notes, BLAKERIDGE_INTEGRATION update.
+1. Final game title (user decision) → `src/config/meta.ts`, `index.html` <title>, README, package slug; bump to 1.0.0.
+2. Cross-browser: run Playwright with Firefox + WebKit (`npx playwright install`), fix issues.
+3. Real-device checks: desktop GPU FPS, mid-range Android/iOS performance and touch feel.
+4. Blakeridge SDK adapter once the platform API is specified (pause/resume, cloud saves).
+5. Optional content: more vault types, ambient music loop, achievements.

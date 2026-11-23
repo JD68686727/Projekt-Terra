@@ -232,3 +232,30 @@ html, body {
 #victory h1 { text-shadow: 0 0 24px rgba(208, 64, 255, 0.8), 3px 3px 0 #5a1080; }
 .weapon-btn { white-space: nowrap; }
 @media (max-width: 1100px) { .weapon-btn { padding: 8px 9px; font-size: 11px; } }
+
+/* --- M6: touch stick --- */
+.touch-stick {
+  position: absolute;
+  left: 18px;
+  bottom: 110px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  border: 2px solid rgba(41, 216, 240, 0.45);
+  background: rgba(12, 16, 28, 0.35);
+  z-index: 6;
+  touch-action: none;
+}
+.touch-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(41, 216, 240, 0.55);
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.menu-hidden { display: none !important; }
+.victory-story { max-width: 520px; margin: 0 auto 18px; color: var(--muted); line-height: 1.7; font-size: 13px; }

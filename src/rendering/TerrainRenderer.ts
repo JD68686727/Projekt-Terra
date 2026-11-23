@@ -62,10 +62,23 @@ export class TerrainRenderer {
     }
   }
 
+  /**
+   * Max chunks recoloured/uploaded per frame. Huge reactions spread their
+   * uploads over a few frames instead of causing one long frame. Visible
+   * chunks go first.
+   */
+  maxUploadsPerFrame = 48;
+
   /** Recolour dirty rows and schedule partial uploads. */
   update(): void {
     const t0 = performance.now();
-    const dirty = this.world.takeDirty();
+    let dirty = this.world.takeDirty();
+    if (dirty.length > this.maxUploadsPerFrame) {
+      const vis = (c: Chunk) => (this.views[c.cy * this.world.chunksX + c.cx].sprite.visible ? 0 : 1);
+      dirty.sort((a, b) => vis(a) - vis(b));
+      this.world.requeueDirty(dirty.slice(this.maxUploadsPerFrame));
+      dirty = dirty.slice(0, this.maxUploadsPerFrame);
+    }
     let texels = 0;
     for (const chunk of dirty) {
       const view = this.views[chunk.cy * this.world.chunksX + chunk.cx];

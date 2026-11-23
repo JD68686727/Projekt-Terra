@@ -2,6 +2,7 @@ import { GAME_SUBTITLE, GAME_TITLE, GAME_VERSION } from '../config/meta';
 import type { Game, WeaponId } from '../core/Game';
 import { UPGRADES, UpgradeGroup, UpgradeId } from '../progression/upgrades';
 import { QUALITY_PRESETS, Quality, Settings, saveSettings } from './settings';
+import { TouchStick } from './TouchStick';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -48,6 +49,7 @@ export class Ui {
   private perfVisible = false;
   private lastHud = 0;
   private game: Game | null = null;
+  private stick: TouchStick | null = null;
   private readonly settings: Settings;
   private readonly settingsEl: HTMLElement;
   private readonly confirmEl: HTMLElement;
@@ -272,6 +274,8 @@ export class Ui {
 
   bind(game: Game): void {
     this.game = game;
+    if (!this.stick) this.stick = new TouchStick(this.root, game.input.stick);
+    else this.stick.rebind(game.input.stick);
   }
 
   /** Shows/hides the main menu; `hasSave` toggles the Continue button. */
@@ -280,6 +284,7 @@ export class Ui {
     this.root.querySelector('#btn-continue')!.classList.toggle('hidden', !hasSave);
     this.root.querySelector('#btn-play')!.textContent = hasSave ? 'NEUES SPIEL' : 'SPIELEN';
     this.hud.classList.toggle('hidden', show);
+    this.root.querySelector('#touch-stick')?.classList.toggle('menu-hidden', show);
     this.weaponBar.classList.toggle('hidden', show);
   }
 
@@ -329,6 +334,8 @@ export class Ui {
       `Geheimkammern: ${game.vaults.filter((x) => x.found).length} / ${game.vaults.length}`,
       `Echo-Stufe: ${game.progression.prestige}`,
     ];
+    const story = el('p', 'victory-story', 'Die letzten Echos der Resonanzkerne verklingen. Unter dir liegt eine gebrochene, stille Welt – bereit, neu zu entstehen.');
+    box.append(story);
     const stats = el('div', 'victory-stats');
     for (const l of lines) stats.append(el('div', undefined, l));
     const cont = el('button', 'btn', 'WEITERSPIELEN');

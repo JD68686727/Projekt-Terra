@@ -115,3 +115,19 @@ describe('core shields', () => {
     expect(20 - w.getHp(51, 50)).toBe(5);
   });
 });
+
+describe('dirty requeue', () => {
+  it('requeued chunks keep their row range and are returned again', () => {
+    const w = new World(128, 128, 1);
+    w.setMat(5, 7, Mat.Stone);
+    w.setMat(70, 70, Mat.Stone);
+    const d = w.takeDirty();
+    expect(d.length).toBe(2);
+    w.clearDirty(d[0]);
+    w.requeueDirty(d);
+    const again = w.takeDirty();
+    expect(again.length).toBe(1);
+    expect(again[0]).toBe(d[1]);
+    expect(again[0].dirtyY0).toBe(70 & 63);
+  });
+});

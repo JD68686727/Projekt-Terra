@@ -153,6 +153,11 @@ export class World {
     return this.dirtyList.splice(0);
   }
 
+  /** Puts still-dirty chunks back for a later frame (upload budget). */
+  requeueDirty(chunks: Chunk[]): void {
+    for (const c of chunks) if (c.dirty) this.dirtyList.push(c);
+  }
+
   clearDirty(c: Chunk): void {
     c.dirty = false;
     c.dirtyY0 = CHUNK_SIZE;

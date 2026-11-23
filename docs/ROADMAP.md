@@ -6,4 +6,4 @@
 - **M3 Automation & resonance** — ✔ done: auto targeting, one emitter, crystal resonance (bounded event queue), reaction FX
 - **M4 MVP** — ✔ done: 1024², IndexedDB save/load (seed + modified chunks), first core, victory, full menu/HUD
 - **M5 Full game** — ✔ done: Drill Missile, Nano Swarm, Fracture Charge, all upgrade families, 3 cores, secrets, pacing
-- **M6 Release** — optimisation, polish, cross-browser, packaging for Blakeridge
+- **M6 Release** — ✔ done (RC 0.9.0): optimisation, polish, cross-browser, packaging for Blakeridge

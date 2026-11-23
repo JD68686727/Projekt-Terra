@@ -3,7 +3,12 @@
 Status: standalone. No Blakeridge SDK specification available yet; none is assumed.
 
 ## Package
-`npm run build` → upload the contents of `dist/` (entry `index.html`, all paths relative, no CDN, no backend). Current size ≈ 0.6 MB uncompressed.
+`npm run package` → `release/projekt-terra-<version>.zip` with `index.html` at the zip root. The script fails if index.html is missing, root-absolute or external (CDN) URLs appear, or the download exceeds 20 MB. v0.9.0: 13 files, 0.59 MB raw / 0.18 MB zipped.
+
+## Hosting requirements (all optional-free)
+- Static file hosting; any sub-path works (`base: './'`).
+- iframe: no special permissions required. If the iframe is sandboxed, allow `allow-scripts allow-same-origin` (needed for IndexedDB saves and the world-generation Web Worker); without same-origin the game still runs but saves fall back to memory with a visible warning, and generation falls back to the main thread.
+- No cookies, no network requests after load.
 
 ## Verified (Chromium)
 - Runs from a nested path (`/games/terra/`).

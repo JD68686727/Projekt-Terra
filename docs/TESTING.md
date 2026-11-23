@@ -41,3 +41,10 @@ FPS in that environment: ~8 (software rasterisation); real-GPU FPS not yet measu
 - Vitest: 98/98 passed (new: drill/nano (12), fracture (4), save v2 migration, 3-core pacing probe).
 - Playwright (Chromium 153 headless): 14/14 passed (new: all three cores → final screen → new world with prestige; drill/nano/fracture destroy terrain; vault reward once).
 - Bench 1024×2048: boot 0.90 s, sim 0.56 ms avg / 2.0 p95, render 0.95 ms, heap 32 MB.
+
+## Latest results (M6 / RC 0.9.0, 2026-11-23)
+- Vitest: 100/100 passed (new: core shields, dirty requeue; pacing gaps pinned).
+- Playwright (Chromium 153 headless): 15/15 passed (new: emulated mobile touch → virtual stick flies the drone).
+- Package check: OK; `unzip -t` clean.
+- Bench 1024×2048: boot 1.06 s, sim 0.35 ms avg / 0.7 p95, render 0.72 ms, heap 30 MB.
+- Not run: Firefox, WebKit, real GPUs/devices.

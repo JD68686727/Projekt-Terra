@@ -199,6 +199,8 @@ export class Game {
     this.world.onDestroy = (x, y, m) => this.onCellDestroyed(x, y, m);
     this.input = new Input(app.canvas);
     this.camera.resize(app.screen.width, app.screen.height);
+    // Phones: start a bit further out so more terrain is visible.
+    if (app.screen.width < 600) this.camera.zoom = this.camera.targetZoom = 5;
     app.renderer.on('resize', (w: number, h: number) => this.camera.resize(w, h));
   }
 
@@ -357,8 +359,11 @@ export class Game {
     this.playTime += h;
     let ax = this.input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']);
     let ay = this.input.axis(['KeyW', 'ArrowUp'], ['KeyS', 'ArrowDown']);
-    // Touch: drone drifts toward the touch point while firing.
-    if (this.input.touch && this.input.fire) {
+    ax = Math.max(-1, Math.min(1, ax + this.input.stick.x));
+    ay = Math.max(-1, Math.min(1, ay + this.input.stick.y));
+    const stickUsed = this.input.stick.x !== 0 || this.input.stick.y !== 0;
+    // Touch without the stick: drone drifts toward the touch point while firing.
+    if (this.input.touch && this.input.fire && !stickUsed) {
       const dx = this.aim.x - this.drone.x;
       const dy = this.aim.y - this.drone.y;
       const d = Math.hypot(dx, dy);
@@ -577,6 +582,18 @@ export class Game {
       g.circle(this.nano.anchorX, this.nano.anchorY, this.nano.stats.leash).stroke({ width: 0.3, color: 0x29d8f0, alpha: 0.15 });
       for (let i = 0; i < n; i++) {
         g.rect(this.nano.x[i] - 0.35, this.nano.y[i] - 0.35, 0.7, 0.7).fill(this.nano.cutting[i] ? 0xffffff : 0x29d8f0);
+      }
+    }
+    // Resonance cores: pulsing shield rings (only when on screen).
+    const [bx0, by0, bx1, by1] = this.camera.bounds();
+    for (const c of this.cores) {
+      if (c.remaining === 0) continue;
+      const s = c.site;
+      if (s.x + s.shell < bx0 || s.x - s.shell > bx1 || s.y + s.shell < by0 || s.y - s.shell > by1) continue;
+      const pulse = 0.5 + 0.5 * Math.sin(this.time * 3);
+      g.circle(s.x + 0.5, s.y + 0.5, s.shell + 2 + pulse * 1.5).stroke({ width: 0.6, color: 0xd040ff, alpha: 0.25 + 0.35 * pulse });
+      for (let k = 1; k < s.shield; k++) {
+        g.circle(s.x + 0.5, s.y + 0.5, s.shell + 3 + k * 1.6).stroke({ width: 0.3, color: 0xd040ff, alpha: 0.18 });
       }
     }
     // Fracture charges (blinking)
