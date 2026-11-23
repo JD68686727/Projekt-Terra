@@ -13,6 +13,8 @@ export type UpgradeId =
   | 'oreVolatility'
   | 'autoTarget'
   | 'smartTarget'
+  | 'autoPulse'
+  | 'autoDrill'
   | 'emitterUnlock'
   | 'emitterCount'
   | 'emitterPower'
@@ -54,8 +56,10 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'laserPierce', group: 'laser', name: 'Durchschlag', desc: '+1 Zelle gleichzeitig', baseCost: 500, growth: 3.5, maxLevel: 5 },
   { id: 'resonanceDepth', group: 'resonance', name: 'Resonanz-Reichweite', desc: '+4 Kettenglieder durch Kristalladern', baseCost: 550, growth: 1.9, maxLevel: 10 },
   { id: 'oreVolatility', group: 'resonance', name: 'Erz-Instabilität', desc: 'Erz explodiert öfter und größer', baseCost: 450, growth: 1.85, maxLevel: 8 },
-  { id: 'autoTarget', group: 'auto', name: 'Auto-Zielerfassung', desc: 'Laser zielt selbst [T]', baseCost: 20, growth: 1, maxLevel: 1, currency: 'rf' },
-  { id: 'smartTarget', group: 'auto', name: 'Materialerkennung', desc: 'Automatik bevorzugt wertvolles Material', baseCost: 1800, growth: 1, maxLevel: 1, requires: 'autoTarget' },
+  { id: 'autoTarget', group: 'auto', name: 'Autopilot', desc: 'Drohne fliegt selbst zum nächsten Kern und gräbt den Weg frei [T]', baseCost: 20, growth: 1, maxLevel: 1, currency: 'rf' },
+  { id: 'smartTarget', group: 'auto', name: 'Materialerkennung', desc: 'Laser und Autopilot bevorzugen wertvolles Material', baseCost: 1800, growth: 1, maxLevel: 1, requires: 'autoTarget' },
+  { id: 'autoPulse', group: 'auto', name: 'Auto-Pulse', desc: 'Autopilot löst den Pulse selbst aus, sobald er geladen ist', baseCost: 3500, growth: 1, maxLevel: 1, requires: 'pulseUnlock' },
+  { id: 'autoDrill', group: 'auto', name: 'Auto-Bohrer', desc: 'Autopilot feuert Bohrraketen in Flugrichtung, wenn der Weg blockiert ist', baseCost: 5500, growth: 1, maxLevel: 1, requires: 'drillUnlock' },
   { id: 'emitterUnlock', group: 'auto', name: 'Laser-Emitter', desc: 'Stationärer Auto-Laser [E] platziert', baseCost: 25, growth: 1, maxLevel: 1, currency: 'rf' },
   { id: 'emitterCount', group: 'auto', name: 'Emitter-Slots', desc: '+1 Emitter', baseCost: 40, growth: 1.8, maxLevel: 5, currency: 'rf', requires: 'emitterUnlock' },
   { id: 'emitterPower', group: 'auto', name: 'Emitter-Leistung', desc: '+30 % Emitter-Schaden', baseCost: 700, growth: 2.1, maxLevel: 20, requires: 'emitterUnlock' },

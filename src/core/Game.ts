@@ -99,7 +99,17 @@ export class Game {
   readonly reactions: Reactions;
   readonly emitters: Emitter[] = [];
   /** Laser fires on its own at auto-selected targets. */
+  /** Autopilot (toggle T, needs the Autopilot upgrade): flies to the nearest core and digs the way free. */
   autoMode = false;
+  /** True while the laser fires this tick (manual or automatic). */
+  laserOn = false;
+  private apActive = false;
+  private apBlocked = false;
+  private apAx = 0;
+  private apAy = 0;
+  private apGx = 0;
+  private apGy = 0;
+  private readonly pathTarget: TargetResult = { x: 0, y: 0, found: false };
   private readonly autoTarget: TargetResult = { x: 0, y: 0, found: false };
   private autoScan = 0;
   readonly perf: PerfStats = { fps: 0, frameMs: 0, simMs: 0, renderMs: 0, terrainMs: 0, uploads: 0, texels: 0, particles: 0, visibleChunks: 0, steps: 0 };
@@ -254,6 +264,7 @@ export class Game {
     this.input.fire = false;
     this.input.consumeClick(); // drop clicks made while paused/in menus
     this.firing = false;
+    this.laserOn = false;
     this.sfx.laser(false, 0, false);
   }
 
@@ -287,7 +298,6 @@ export class Game {
   toggleAuto(): boolean {
     if (!this.progression.autoTargetUnlocked()) return false;
     this.autoMode = !this.autoMode;
-    if (this.autoMode) this.weapon = 'laser';
     return true;
   }
 
@@ -351,7 +361,7 @@ export class Game {
     this.drawBeam();
     this.drawWaves();
     this.drawEmitters();
-    this.sfx.laser(this.firing && this.weapon === 'laser' && !this.paused, this.progression.level('laserDamage'), this.beam.hit);
+    this.sfx.laser(this.laserOn && !this.paused, this.progression.level('laserDamage'), this.beam.hit);
 
     const r0 = performance.now();
     this.app.render();
@@ -406,21 +416,20 @@ export class Game {
         ay = dy / d;
       }
     }
+    // Autopilot only steers while the player is not touching the movement controls.
+    this.apActive = false;
+    this.apBlocked = false;
+    this.pathTarget.found = false;
+    if (this.autoMode && Math.abs(ax) < 0.01 && Math.abs(ay) < 0.01) {
+      this.autopilotStep();
+      ax = this.apAx;
+      ay = this.apAy;
+    }
     this.drone.update(this.world, ax, ay, h);
 
     this.destroyedThisTick = 0;
     this.firing = this.input.fire || this.input.keys.has('Space');
-    if (this.firing && this.weapon === 'pulse') {
-      const wave = this.pulse.fire(this.world, this.drone.x, this.drone.y, this.aim.x, this.aim.y);
-      if (wave) {
-        this.sfx.pulse();
-        this.shake = Math.min(3, this.shake + 0.8 + wave.maxR * 0.05);
-        for (let i = 0; i < 24; i++) {
-          const a = (i / 24) * Math.PI * 2;
-          this.particles.emit(wave.x, wave.y, Math.cos(a) * 55, Math.sin(a) * 55, i % 2 ? 0x29d8f0 : 0xffffff, 0.3, 0.6, 0, true);
-        }
-      }
-    }
+    if (this.firing && this.weapon === 'pulse') this.firePulse(this.aim.x, this.aim.y);
     this.pulse.update(this.world, h);
     // Latched clicks: taps shorter than one frame still count; Space acts as a click on its rising edge.
     const space = this.input.keys.has('Space');
@@ -443,23 +452,49 @@ export class Game {
     this.fracture.update(h);
     if ((Math.floor(this.time * 60) & 15) === 0) this.checkVaults();
     for (const e of this.emitters) e.update(this.world, h, this.progression.materialAware());
-    // Auto mode: laser fires by itself at scanned targets unless the player aims manually.
+    // The laser aims itself: ahead of the rig first, then the best target around it.
+    // Holding the mouse button / Space takes over manual aiming.
     let tx = this.aim.x;
     let ty = this.aim.y;
-    if (this.autoMode && this.weapon === 'laser' && !this.firing) {
+    const manualLaser = this.firing && this.weapon === 'laser';
+    this.laserOn = manualLaser;
+    if (!manualLaser && (this.weapon === 'laser' || this.autoMode)) {
       const t = this.autoTarget;
-      const lost = t.found && this.world.getMat(Math.floor(t.x), Math.floor(t.y)) === Mat.Air;
-      if (lost || ++this.autoScan >= 8) {
-        this.autoScan = 0;
-        findTarget(this.world, this.drone.x, this.drone.y, this.laser.stats.range, 48, this.progression.materialAware(), t);
-      }
-      if (t.found) {
-        tx = t.x;
-        ty = t.y;
-        this.firing = true;
+      if (this.pathTarget.found) {
+        tx = this.pathTarget.x;
+        ty = this.pathTarget.y;
+        this.laserOn = true;
+      } else {
+        const lost = t.found && this.world.getMat(Math.floor(t.x), Math.floor(t.y)) === Mat.Air;
+        if (lost || ++this.autoScan >= 8) {
+          this.autoScan = 0;
+          let bx = this.apActive ? this.apGx : ax;
+          let by = this.apActive ? this.apGy : ay;
+          const bl = Math.hypot(bx, by);
+          if (bl > 0.01) {
+            bx /= bl;
+            by /= bl;
+          } else {
+            bx = 0;
+            by = 0;
+          }
+          findTarget(this.world, this.drone.x, this.drone.y, this.laser.stats.range, 48, this.progression.materialAware(), t, bx, by);
+        }
+        if (t.found) {
+          tx = t.x;
+          ty = t.y;
+          this.laserOn = true;
+        }
       }
     }
-    if (this.firing && this.weapon === 'laser') {
+    if (this.autoMode) {
+      if (this.laserOn && this.progression.level('autoPulse') > 0 && this.pulse.ready) this.firePulse(tx, ty);
+      if (this.apBlocked && this.progression.level('autoDrill') > 0 &&
+          this.drill.fire(this.drone.x, this.drone.y, this.drone.x + this.apGx * 40, this.drone.y + this.apGy * 40)) {
+        this.sfx.blast();
+      }
+    }
+    if (this.laserOn) {
       this.laser.fire(this.world, this.drone.x, this.drone.y, tx, ty, h, this.beam);
       if (this.beam.hit && hash01(Math.floor(this.time * 60), 7, 1) < 0.6) {
         const c = Math.random() < 0.5 ? 0xffc060 : 0xff7a1a;
@@ -477,6 +512,56 @@ export class Game {
     }
     this.particles.update(h);
     if (this.destroyedThisTick > 12) this.shake = Math.min(3, this.shake + this.destroyedThisTick * 0.004);
+  }
+
+  private firePulse(tx: number, ty: number): void {
+    const wave = this.pulse.fire(this.world, this.drone.x, this.drone.y, tx, ty);
+    if (!wave) return;
+    this.sfx.pulse();
+    this.shake = Math.min(3, this.shake + 0.8 + wave.maxR * 0.05);
+    for (let i = 0; i < 24; i++) {
+      const a = (i / 24) * Math.PI * 2;
+      this.particles.emit(wave.x, wave.y, Math.cos(a) * 55, Math.sin(a) * 55, i % 2 ? 0x29d8f0 : 0xffffff, 0.3, 0.6, 0, true);
+    }
+  }
+
+  /**
+   * Autopilot: head for the nearest core. When the rig's footprint would hit terrain,
+   * hold position and point the laser at the blocking cell (tunnelling). Bounded: one 3x3 probe per tick.
+   */
+  private autopilotStep(): void {
+    this.apAx = 0;
+    this.apAy = 0;
+    const c = this.nearestCore();
+    if (!c || c.dist < 3) return;
+    const gx = c.dx / c.dist;
+    const gy = c.dy / c.dist;
+    this.apActive = true;
+    this.apGx = gx;
+    this.apGy = gy;
+    const d = this.drone;
+    const px = d.x + gx * 1.4;
+    const py = d.y + gy * 1.4;
+    if (!d.collides(this.world, px, py)) {
+      this.apAx = gx;
+      this.apAy = gy;
+      return;
+    }
+    this.apBlocked = true;
+    const h = d.half - 0.01;
+    let best = Infinity;
+    for (let y = Math.floor(py - h); y <= Math.floor(py + h); y++) {
+      for (let x = Math.floor(px - h); x <= Math.floor(px + h); x++) {
+        if (this.world.getMat(x, y) === Mat.Air) continue;
+        const dist = Math.hypot(x + 0.5 - d.x, y + 0.5 - d.y);
+        if (dist < best) {
+          best = dist;
+          this.pathTarget.x = x + 0.5;
+          this.pathTarget.y = y + 0.5;
+          this.pathTarget.found = true;
+        }
+      }
+    }
   }
 
   private onCellDestroyed(x: number, y: number, m: Mat): void {
@@ -698,7 +783,7 @@ export class Game {
   private drawBeam(): void {
     const g = this.beamGfx;
     g.clear();
-    if (!this.firing || this.paused || this.weapon !== 'laser') return;
+    if (!this.laserOn || this.paused) return;
     const ox = this.drone.x;
     const oy = this.drone.y;
     const ex = this.beam.endX;
@@ -716,7 +801,7 @@ export class Game {
 
   private drawDrone(): void {
     const set = sprites().rig;
-    const frames = this.firing ? set.firing : set.idle;
+    const frames = this.firing || this.laserOn ? set.firing : set.idle;
     const sp = this.droneSprite;
     sp.texture = frames[Math.floor(this.time * 12) & 1];
     sp.position.set(this.drone.x, this.drone.y + Math.sin(this.time * 4) * 0.15);

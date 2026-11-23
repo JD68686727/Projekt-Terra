@@ -85,3 +85,9 @@ Next: M2 (see docs/TASKS.md).
 - Resource panel (MP/RF with icons, depth/destroyed/emitter stats), core compass (8-dir arrow, progress ring, distance, shield).
 - Action bar with square slots: icon, key badge, conic cooldown, lock state, affordable-upgrade badge.
 - Upgrade panel: wallet, category tabs, cards with icon, level pips and currency-coded buy buttons. All test IDs unchanged.
+
+## Controls and automation pass (post RC)
+- Laser auto-aims from the start (48-ray scan every 8 ticks, biased toward the flight direction); holding mouse/Space takes over manual aim. Other weapons still use the cursor.
+- Upgrade `autoTarget` is now **Autopilot** (T): flies to the nearest core and tunnels (3×3 footprint probe, laser digs the blocking cell). Manual WASD input pauses it.
+- New automation upgrades: **Auto-Pulse** (needs Pulse) and **Auto-Bohrer** (needs Drill), both only active while the autopilot is on.
+- Pacing bots unchanged (they never modelled aim). Tests: +3 e2e (auto laser, autopilot tunnelling, auto pulse/drill); save test now pauses before snapshotting.

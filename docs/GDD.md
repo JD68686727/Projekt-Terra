@@ -39,7 +39,7 @@ Manual → auto laser targeting → stationary emitters → multiple systems →
 - Unstable ore may detonate when destroyed (chance/radius upgradeable); blasts chain through ore pockets.
 
 ## Controls
-WASD fly · mouse/space fire · 1–5/Q weapon · T auto-laser · E place emitter · U upgrades · wheel zoom · Esc pause · M mute · F3 perf.
+WASD fly (laser aims itself; hold mouse/Space to aim manually or fire other weapons) · 1–5/Q weapon · T autopilot · E place emitter · U upgrades · wheel zoom · Esc pause · M mute · F3 perf.
 
 ## Full game (M5)
 - 3 resonance cores, shallow → deep, each larger and better shielded. Destroying all three ends the run.

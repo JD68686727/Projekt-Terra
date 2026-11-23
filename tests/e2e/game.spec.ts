@@ -195,6 +195,69 @@ test('auto-targeting and emitter mine without player input', async ({ page }) =>
   expect(errors).toEqual([]);
 });
 
+test('laser aims and fires by itself without mouse input', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page);
+  await page.keyboard.down('KeyS');
+  await page.waitForTimeout(2500);
+  await page.keyboard.up('KeyS');
+  const before = await page.evaluate(() => window.__game!.stats.destroyed);
+  await page.keyboard.down('KeyS');
+  await page.waitForTimeout(2000);
+  await page.keyboard.up('KeyS');
+  const after = await page.evaluate(() => ({ d: window.__game!.stats.destroyed, laser: window.__game!.laserOn }));
+  expect(after.d - before).toBeGreaterThan(5);
+  expect(errors).toEqual([]);
+});
+
+test('autopilot flies toward the nearest core and tunnels through terrain', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=777');
+  await page.evaluate(() => {
+    const p = window.__game!.progression;
+    p.earnRf(100);
+    p.levels.laserDamage = 8;
+    p.levels.laserWidth = 2;
+    window.__game!.applyUpgrades();
+  });
+  await page.keyboard.press('KeyU');
+  await page.locator('#buy-autoTarget').click();
+  await page.keyboard.press('KeyU');
+  await page.keyboard.press('KeyT');
+  expect(await page.evaluate(() => window.__game!.autoMode)).toBe(true);
+  const dist = () => page.evaluate(() => window.__game!.nearestCore()!.dist);
+  const d0 = await dist();
+  await page.waitForTimeout(8000);
+  const d1 = await dist();
+  expect(d1).toBeLessThan(d0 - 25);
+  // Manual input wins over the autopilot.
+  await page.keyboard.down('KeyW');
+  await page.waitForTimeout(600);
+  await page.keyboard.up('KeyW');
+  expect(await page.evaluate(() => window.__game!.stats.destroyed)).toBeGreaterThan(30);
+  expect(errors).toEqual([]);
+});
+
+test('autopilot fires Pulse and Drill by itself with the Auto upgrades', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=777');
+  await page.evaluate(() => {
+    const g = window.__game!;
+    const l = g.progression.levels;
+    l.autoTarget = 1;
+    l.pulseUnlock = 1;
+    l.drillUnlock = 1;
+    l.autoPulse = 1;
+    l.autoDrill = 1;
+    l.laserDamage = 6;
+    g.applyUpgrades();
+    g.autoMode = true;
+  });
+  await page.waitForFunction(() => window.__game!.pulse.cooldownLeft > 0, null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__game!.drill.cooldownLeft > 0, null, { timeout: 60000 });
+  expect(errors).toEqual([]);
+});
+
 test('progress survives a page reload (IndexedDB) and Continue restores it', async ({ page }) => {
   const errors = collectErrors(page);
   await start(page, URL + '?seed=4242');
@@ -204,12 +267,13 @@ test('progress survives a page reload (IndexedDB) and Continue restores it', asy
   await page.waitForTimeout(2000);
   await page.mouse.up();
   await page.evaluate(() => window.__game!.progression.earn(1234));
+  // The laser now fires by itself: pause first so the snapshot cannot drift before saving.
+  await page.keyboard.press('Escape');
   const before = await page.evaluate(() => {
     const g = window.__game!;
     return { mp: Math.floor(g.progression.mp), destroyed: g.stats.destroyed, seed: g.world.seed, solid: g.world.countSolid() };
   });
   expect(before.destroyed).toBeGreaterThan(0);
-  await page.keyboard.press('Escape');
   await page.locator('#btn-save').click();
   await expect(page.locator('#toast')).toContainText('gespeichert');
   await page.reload();

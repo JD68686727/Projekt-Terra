@@ -129,8 +129,9 @@ export class Ui {
     m.append(col);
     const hint = el('div', 'hint');
     hint.innerHTML =
-      'WASD / Pfeiltasten: Drohne steuern · Maus / Leertaste: Feuern<br>' +
-      '1 / 2 / Q: Waffe · U: Upgrades · T: Auto-Laser · E: Emitter<br>Mausrad: Zoom · Esc: Pause · M: Ton · F3: Performance<br>' +
+      'WASD / Pfeiltasten: Drohne steuern · Der Laser zielt selbst<br>' +
+      'Maus / Leertaste: andere Waffen auslösen oder Laser manuell zielen<br>' +
+      '1–5 / Q: Waffe · U: Upgrades · T: Autopilot · E: Emitter<br>Mausrad: Zoom · Esc: Pause · M: Ton · F3: Performance<br>' +
       '<span style="color:#29d8f0">Laser auf Kristalle → Kettenreaktion → Resonance Fragments</span>';
     m.append(hint, el('div', 'hint', `v${GAME_VERSION}`));
     this.menu.append(m);
@@ -273,7 +274,7 @@ export class Ui {
     this.pulseCd = this.weaponBtns.get('pulse')!.querySelector('.slot-cd')!;
     const tools = el('div', 'bar-group');
     for (const [id, name, key, label, act] of [
-      ['btn-auto', 'auto', 'T', 'AUTO', () => this.game?.toggleAuto()],
+      ['btn-auto', 'auto', 'T', 'PILOT', () => this.game?.toggleAuto()],
       ['btn-emitter', 'emitter', 'E', 'EMITTER', () => this.game?.placeEmitter()],
     ] as const) {
       const b = slot(id, name, key, label);

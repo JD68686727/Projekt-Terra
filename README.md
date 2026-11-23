@@ -26,7 +26,7 @@ npm run bench        # headless performance probe
 Playwright uses a local Chrome (`CHROME_PATH`, default `/usr/bin/google-chrome`). For Firefox/WebKit run `npx playwright install` and add projects in `playwright.config.ts`.
 
 ## Controls
-WASD/arrows fly · mouse/Space fire · 1–5 or Q weapons · T auto-laser · E emitter · U upgrades · wheel/+/- zoom · Esc pause · M mute · F3 performance overlay. Touch: virtual stick + tap to fire/aim, on-screen buttons.
+WASD/arrows fly (the laser aims itself; hold mouse/Space to aim manually or trigger other weapons) · 1–5 or Q weapons · T autopilot (upgrade) · E emitter · U upgrades · wheel/+/- zoom · Esc pause · M mute · F3 performance overlay. Touch: virtual stick + tap to fire/aim, on-screen buttons.
 
 ## Tech
 TypeScript · PixiJS 8 · Vite · Web Worker world generation · IndexedDB saves. Architecture: `docs/ARCHITECTURE.md`. Status: `docs/PROGRESS.md`.

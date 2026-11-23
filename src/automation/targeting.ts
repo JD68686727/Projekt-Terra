@@ -32,6 +32,8 @@ function visit(cx: number, cy: number, dist: number): boolean {
 /**
  * Casts `rays` rays evenly over 360 degrees and picks the best first-solid hit.
  * Nearest wins unless `materialAware`, which maximises value / (1 + dist*0.05).
+ * Optional (biasX, biasY) is a unit direction: hits along it count as up to 2.6x closer,
+ * so a moving rig digs ahead of itself instead of around itself.
  * Work is bounded by rays * (ceil(range*2)+2) cell visits.
  */
 export function findTarget(
@@ -42,6 +44,8 @@ export function findTarget(
   rays: number,
   materialAware: boolean,
   out: TargetResult,
+  biasX = 0,
+  biasY = 0,
 ): boolean {
   out.found = false;
   if (rays <= 0 || range <= 0) return false;
@@ -56,9 +60,11 @@ export function findTarget(
     sHit = false;
     traverseGrid(ox, oy, Math.cos(a), Math.sin(a), range, visit);
     if (!sHit || sHitDist > range) continue;
+    const dot = Math.cos(a) * biasX + Math.sin(a) * biasY;
+    const eff = sHitDist * (1.3 - 0.5 * dot);
     const score = materialAware
-      ? MATERIALS[world.getMat(sHitX, sHitY)].value / (1 + sHitDist * 0.05)
-      : -sHitDist;
+      ? MATERIALS[world.getMat(sHitX, sHitY)].value / (1 + eff * 0.05)
+      : -eff;
     if (score > bestScore || (score === bestScore && sHitDist < bestDist)) {
       bestScore = score;
       bestDist = sHitDist;
