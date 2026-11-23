@@ -1,13 +1,14 @@
-import { Application, BufferImageSource, Container, Graphics, Sprite, Texture } from 'pixi.js';
+import { Application, Container, Graphics } from 'pixi.js';
 import { World } from '../world/World';
-import { CoreSite, SKY_FRACTION, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
+import { CoreSite, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
 import type { UpgradeId } from '../progression/upgrades';
 import { MATERIALS, Mat } from '../world/materials';
-import { hash01, fbm } from '../world/rng';
+import { hash01 } from '../world/rng';
 import { TerrainRenderer } from '../rendering/TerrainRenderer';
 import { Camera } from '../rendering/Camera';
 import { Lighting } from '../rendering/Lighting';
+import { Backdrop } from '../rendering/Backdrop';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { Particles } from '../effects/Particles';
 import { CuttingLaser, BeamResult } from '../weapons/CuttingLaser';
@@ -71,7 +72,6 @@ export interface GameStats {
 
 export type WeaponId = 'laser' | 'pulse' | 'drill' | 'nano' | 'fracture';
 
-const SKY = SKY_FRACTION;
 
 export class Game {
   readonly app: Application;
@@ -120,6 +120,8 @@ export class Game {
   private readonly waveGfx = new Graphics();
   private readonly emitterGfx = new Graphics();
   private readonly lighting = new Lighting();
+  private readonly backdrop: Backdrop;
+  private dustTimer = 0;
   private shake = 0;
   private destroyedThisTick = 0;
   private readonly aim = { x: 0, y: 0 };
@@ -192,7 +194,8 @@ export class Game {
     this.terrain = new TerrainRenderer(this.world);
     this.particles = new Particles(opts.particles ?? 900);
 
-    this.scene.addChild(this.createBackdrop());
+    this.backdrop = new Backdrop(this.world.width, this.world.height, this.world.seed);
+    this.scene.addChild(this.backdrop.container);
     this.scene.addChild(this.terrain.container);
     // Everything after the lighting layer reads as emitting light.
     this.scene.addChild(this.lighting.container);
@@ -323,6 +326,7 @@ export class Game {
     }
     const [x0, y0, x1, y1] = this.camera.bounds();
     this.terrain.cull(x0, y0, x1, y1);
+    this.backdrop.update(dt, this.camera.x, this.camera.y);
     this.lighting.update(this.drone.x, this.drone.y, this.drone.y - surfaceY(Math.floor(this.drone.x), this.world), [x0, y0, x1, y1]);
     this.terrain.update();
     this.drawDrone();
@@ -445,6 +449,7 @@ export class Game {
       }
     }
     this.reactions.update();
+    this.emitDust(h);
     this.particles.update(h);
     if (this.destroyedThisTick > 12) this.shake = Math.min(3, this.shake + this.destroyedThisTick * 0.004);
   }
@@ -497,6 +502,19 @@ export class Game {
       }
       return;
     }
+  }
+
+  /** Slow, faint dust drifting through the light around the rig. */
+  private emitDust(h: number): void {
+    this.dustTimer -= h;
+    if (this.dustTimer > 0) return;
+    this.dustTimer = 0.12;
+    const a = Math.random() * Math.PI * 2;
+    const r = 4 + Math.random() * 26;
+    const x = this.drone.x + Math.cos(a) * r;
+    const y = this.drone.y + Math.sin(a) * r;
+    if (this.world.getMat(Math.floor(x), Math.floor(y)) !== Mat.Air) return;
+    this.particles.emit(x, y, (Math.random() - 0.5) * 1.5, 0.6 + Math.random() * 1.2, Math.random() < 0.8 ? 0x384058 : 0x2c5a66, 3 + Math.random() * 3, 0.35, 0, true);
   }
 
   private checkVaults(): void {
@@ -673,57 +691,6 @@ export class Game {
     g.rect(x - 0.5, y - 0.5, 1, 1).fill(this.firing ? 0xffb040 : 0x29d8f0);
   }
 
-  /** Low-res cave back-wall + sky, generated once. */
-  private createBackdrop(): Container {
-    const c = new Container();
-    const sky = new Graphics();
-    const w = this.world.width;
-    const h = this.world.height;
-    // Sky extends well below the lowest possible surface dip.
-    const skyBottom = h * (SKY + 0.15);
-    const bands = 16;
-    for (let i = 0; i < bands; i++) {
-      const t = i / bands;
-      const col = lerpColor(0x070a14, 0x24123a, t);
-      sky.rect(-w, -200 + t * (skyBottom + 200), w * 3, (skyBottom + 200) / bands + 1).fill(col);
-    }
-    c.addChild(sky);
-    // Stars
-    const stars = new Graphics();
-    for (let i = 0; i < 120; i++) {
-      const sx = hash01(i, 1, this.world.seed) * w * 1.5 - w * 0.25;
-      const sy = -200 + hash01(i, 2, this.world.seed) * (h * SKY + 120);
-      stars.rect(sx, sy, 0.5, 0.5).fill({ color: 0xbfd8ff, alpha: 0.3 + hash01(i, 3, 0) * 0.6 });
-    }
-    c.addChild(stars);
-
-    const scale = 2;
-    const bw = w / scale;
-    const bh = h / scale;
-    const px = new Uint8Array(bw * bh * 4);
-    for (let by = 0; by < bh; by++) {
-      for (let bx = 0; bx < bw; bx++) {
-        const wx = bx * scale;
-        const wy = by * scale;
-        const surf = surfaceY(wx, this.world);
-        const p = (by * bw + bx) * 4;
-        if (wy < surf + 2) continue;
-        const n = fbm(wx / 16, wy / 16, this.world.seed ^ 0xbac, 3);
-        const d = 1 - (wy / h) * 0.4;
-        const v = (14 + n * 22) * d;
-        px[p] = v * 0.9;
-        px[p + 1] = v * 0.85;
-        px[p + 2] = v * 1.15;
-        px[p + 3] = 255;
-      }
-    }
-    const src = new BufferImageSource({ resource: px, width: bw, height: bh, scaleMode: 'nearest', autoGenerateMipmaps: false });
-    const back = new Sprite(new Texture({ source: src }));
-    back.scale.set(scale);
-    c.addChild(back);
-    return c;
-  }
-
   destroy(): void {
     this.stop();
     this.sfx.laser(false, 0, false);
@@ -732,11 +699,4 @@ export class Game {
     this.terrain.destroy();
     this.scene.destroy({ children: true });
   }
-}
-
-function lerpColor(a: number, b: number, t: number): number {
-  const r = ((a >> 16) & 0xff) + ((((b >> 16) & 0xff) - ((a >> 16) & 0xff)) * t);
-  const g = ((a >> 8) & 0xff) + ((((b >> 8) & 0xff) - ((a >> 8) & 0xff)) * t);
-  const bl = (a & 0xff) + (((b & 0xff) - (a & 0xff)) * t);
-  return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(bl);
 }
