@@ -27,3 +27,8 @@ FPS in that environment: ~8 (software rasterisation); real-GPU FPS not yet measu
 ## Latest results (M2, 2026-11-23)
 - Vitest: 27/27 passed (incl. pacing simulation).
 - Playwright (Chromium 153 headless): 6/6 passed (new: buy upgrade → laser dps rises; pulse unlock, weapon switch, pulse destroys terrain; no console errors).
+
+## Latest results (M3, 2026-11-23)
+- Vitest: 41/41 passed (new: reactions bounds/termination/depth, ore chains, automation targeting + emitter, pacing incl. reactions + RF).
+- Playwright (Chromium 153 headless): 8/8 passed (new: resonance chain → RF in HUD; auto-targeting + emitter mine without input).
+- Bench: 256² sim 0.68 ms avg / 1.9 p95; 1024² 0.54 / 1.8 ms.

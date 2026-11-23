@@ -203,7 +203,8 @@ export class Game {
     const s1 = performance.now();
 
     this.camera.targetX = this.drone.x;
-    this.camera.targetY = this.drone.y;
+    // Look slightly below the rig: the action (digging) happens downward.
+    this.camera.targetY = this.drone.y + (this.camera.viewH / this.camera.zoom) * 0.12;
     this.camera.update(dt, this.world.width, this.world.height);
     this.camera.apply(this.scene);
     if (this.shake > 0.01) {

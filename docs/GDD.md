@@ -33,3 +33,10 @@ MP for standard upgrades; Resonance Fragments (RF) for special unlocks (M3+).
 
 ## Automation ladder
 Manual → auto laser targeting → stationary emitters → multiple systems → material-aware targeting → automated chain reactions.
+
+## Resonance & reactions (M3)
+- Any damage to a Resonance Crystal charges it; the charge sweeps through the connected vein (depth upgradeable), consuming it and granting RF.
+- Unstable ore may detonate when destroyed (chance/radius upgradeable); blasts chain through ore pockets.
+
+## Controls
+WASD fly · mouse/space fire · 1/2/Q weapon · T auto-laser · E place emitter · U upgrades · wheel zoom · Esc pause · M mute · F3 perf.

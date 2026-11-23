@@ -1,5 +1,16 @@
 # Progress
 
+## 2026-11-23 — M3 complete
+- Reactions (`src/world/Reactions.ts`): resonance spreads through 4-connected crystal cells, one BFS layer per tick (visible wave), depth-limited, ≤400 cells/tick, queue cap 32k, per-cell charged flags (no duplicates/loops). Unstable ore detonates on destruction (deterministic chance), blasts queued (≤24/tick, cap 512), chains through ore without recursion.
+- Resonance Fragments (RF): 0.25 RF per resonated crystal cell; RF-priced upgrades.
+- Automation: auto-targeting (T, 48-ray scan every 8 ticks, material-aware upgrade), stationary laser emitters (E, slots upgradeable, 32-ray retarget).
+- New upgrades: resonance depth, ore volatility, auto-targeting, material recognition, emitter unlock/slots/power.
+- FX/SFX: resonance sparks + chime, blast debris + shake + boom; HUD RF, emitter count; touch buttons T/E.
+- Camera looks slightly below the rig.
+- Delegation: `targeting.ts`, `Emitter.ts` + tests by sonnet-engineer subagent; lead review found idle emitters rescanning every tick (fixed), then integrated.
+- Pacing (bot): first upgrade 7 s, auto-targeting ~1:50, emitter ~2:50, pulse ~2:50.
+- Tests: 41 unit, 8 e2e (Chromium). Bench unchanged (sim 0.5-0.7 ms/frame).
+
 ## 2026-11-23 — M2 complete
 - Progression: 10 upgrades (laser damage/width/range/pierce, MP multiplier, drive, pulse unlock/damage/radius/cooldown), exponential costs, prerequisites, stat derivation.
 - Upgrade panel (U / button), weapon bar (1/2/Q, touch buttons), affordable-upgrade glow.
