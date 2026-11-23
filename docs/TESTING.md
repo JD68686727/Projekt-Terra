@@ -2,7 +2,7 @@
 
 | Suite | Command | Scope |
 |---|---|---|
-| Unit (Vitest) | `npm test` | rng, world storage/damage/dirty tracking, deterministic generation, raycast, laser, fixed loop |
+| Unit (Vitest) | `npm test` | progression/costs, pulse cannon, early-game pacing bot, rng, world storage/damage/dirty tracking, deterministic generation, raycast, laser, fixed loop |
 | E2E (Playwright) | `npm run build && npm run test:e2e` | boot from nested path `/games/terra/`, console errors, non-black render, laser destroys terrain + MP, keyboard movement, pause, mobile viewport, iframe embedding (no parent scroll) |
 | Perf probe | `npm run build && npm run bench` | frame / sim / terrain / render CPU ms, uploaded texels, heap |
 
@@ -23,3 +23,7 @@
 | 2048² | 1.73 s | 0.35 / 1.7 ms | 0.07 / 0.2 ms | 0.96 / 3.8 ms | 44 MB |
 
 FPS in that environment: ~8 (software rasterisation); real-GPU FPS not yet measured.
+
+## Latest results (M2, 2026-11-23)
+- Vitest: 27/27 passed (incl. pacing simulation).
+- Playwright (Chromium 153 headless): 6/6 passed (new: buy upgrade → laser dps rises; pulse unlock, weapon switch, pulse destroys terrain; no console errors).

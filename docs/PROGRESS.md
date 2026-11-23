@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-11-23 — M2 complete
+- Progression: 10 upgrades (laser damage/width/range/pierce, MP multiplier, drive, pulse unlock/damage/radius/cooldown), exponential costs, prerequisites, stat derivation.
+- Upgrade panel (U / button), weapon bar (1/2/Q, touch buttons), affordable-upgrade glow.
+- Pulse Cannon: detonates at first solid cell, expanding shockwave damages only the annulus crossed per tick (bounded), cooldown.
+- Feedback: screen shake on pulses and mass destruction, ring FX, adaptive debris density.
+- Audio: synthesised WebAudio SFX (laser hum, crumble, pulse boom, purchase/denied), unlocked on Play, suspended on pause/hidden tab, volume slider in pause menu, M = mute.
+- Balance: bot simulation (tests/unit/balance.test.ts) — first upgrade ~7 s, 9 upgrades in 2 min, pulse at ~3.5 min.
+- Tests: 27 unit, 6 e2e (Chromium). Delegation: none (tightly coupled changes).
+- Note: progress is not saved yet (IndexedDB in M4).
+
 ## 2026-11-23 — M0 + M1 complete
 - Scaffold: Vite 8 / TS 7 / PixiJS 8 / Vitest 5 / Playwright 1.65; relative base; agent definitions.
 - World: 64×64 chunks, typed arrays, seeded generation (surface, caves, crystal veins, ore pockets, dense rock, titanium bands).

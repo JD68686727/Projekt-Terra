@@ -1,13 +1,14 @@
-# Tasks — next (M2)
+# Tasks — next (M3: automation & resonance)
 
-1. `src/progression/`: upgrade definitions (cost curve `base * growth^level`), purchase logic, unit tests.
-2. Apply upgrades to `CuttingLaser.stats` (dps, width, range, pierce/efficiency) and MP multiplier.
-3. Upgrade panel UI (DOM), keyboard shortcut `U`, touch-friendly.
-4. Pulse Cannon: bounded radial damage (circle scan ≤ r²·π cells), cooldown, weapon switch `1`/`2`.
-5. Feedback: screen shake on large destruction, hit flash, debris tuned per material.
-6. `src/audio/`: WebAudio synthesized SFX (laser hum, break, pulse), unlocked on first gesture, volume setting.
-7. Balance first 10 minutes; e2e test: buy an upgrade.
+1. Auto-targeting upgrade: laser picks the most valuable reachable cell in range (bounded scan, material-aware later).
+2. One stationary laser emitter: placeable, fires autonomously at nearby terrain, upgradeable.
+3. Resonance crystals: laser/pulse hits "charge" crystals; charged crystals propagate to connected crystal cells via a bounded per-tick event queue (max N cells/tick, no recursion).
+4. Unstable ore: destruction triggers small secondary blasts (queued, capped).
+5. Resonance Fragments (RF) as second currency from resonance reactions; RF-only upgrades.
+6. Reaction FX (glow propagation, chain flashes) + SFX.
+7. Tests: propagation bounds, no infinite loops, determinism; e2e emitter placement.
 
 Known follow-ups
-- World generation for 2048×8192 should move to a Web Worker (2048² takes ~1.7 s boot incl. generation in headless).
-- Touch: only fire+drift implemented; on-screen move controls later.
+- Progress is lost on reload until M4 (IndexedDB).
+- World generation for 2048×8192 should move to a Web Worker.
+- Touch: on-screen movement controls still minimal (fire + drift).
