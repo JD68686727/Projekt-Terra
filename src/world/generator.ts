@@ -15,6 +15,8 @@ export interface WorldSpec {
 export interface CoreSite {
   x: number;
   y: number;
+  /** Resonance shield: incoming damage on this core's material is divided by this. */
+  shield: number;
   /** Radius of the Core Material sphere. */
   radius: number;
   /** Outer radius of the Titanium Matrix shell. */
@@ -52,6 +54,7 @@ export function coreSites(spec: WorldSpec): CoreSite[] {
     const x = Math.floor(width * fx);
     const y = Math.floor(top + (height - top) * fy);
     out.push({
+      shield: CORE_SHIELDS[Math.min(i, CORE_SHIELDS.length - 1)],
       x: Math.min(width - shell - 5, Math.max(shell + 5, x)),
       y: Math.min(height - shell - 5, y),
       radius,
@@ -150,6 +153,23 @@ function stampCore(out: Uint8Array, width: number, height: number, seed: number,
       else if (d <= halo && hash01(x, y, seed ^ 0xa10) < 0.55) out[i] = Mat.ResonanceCrystal;
     }
   }
+}
+
+/** Damage divisor per core index (deeper cores are shielded harder). */
+export const CORE_SHIELDS = [1, 3, 6];
+
+/**
+ * Returns a lookup used by World.damage for Core Material cells: the shield
+ * of the core containing (x, y), or 1.
+ */
+export function coreShieldLookup(sites: CoreSite[]): (x: number, y: number) => number {
+  return (x, y) => {
+    for (const c of sites) {
+      const r = c.radius + 1;
+      if (Math.abs(x - c.x) <= r && Math.abs(y - c.y) <= r) return c.shield;
+    }
+    return 1;
+  };
 }
 
 export function countCoreCells(world: World, site: CoreSite): number {

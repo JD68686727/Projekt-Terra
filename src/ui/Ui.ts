@@ -395,7 +395,9 @@ export class Ui {
     if (near) {
       const arrows = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
       const a = Math.round(((Math.atan2(near.dy, near.dx) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8;
-      this.scanEl.textContent = `RESONANZKERN ${arrows[a]} ${Math.round(near.dist)} m`;
+      const idx = game.cores.indexOf(near.core) + 1;
+      const shield = near.core.site.shield > 1 ? ` · SCHILD ×${near.core.site.shield}` : '';
+      this.scanEl.textContent = `RESONANZKERN ${idx}/${game.cores.length} ${arrows[a]} ${Math.round(near.dist)} m${shield}`;
     } else {
       this.scanEl.textContent = game.cores.length ? 'ALLE KERNE ZERSTÖRT' : '';
     }

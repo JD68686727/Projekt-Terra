@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { World } from '../../src/world/World';
-import { coreSites, countCoreCells, generateWorld, surfaceY } from '../../src/world/generator';
+import { coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY } from '../../src/world/generator';
 import { MATERIALS, Mat } from '../../src/world/materials';
 import { Progression } from '../../src/progression/Progression';
 import { CuttingLaser } from '../../src/weapons/CuttingLaser';
@@ -20,6 +20,7 @@ function run(seed: number, maxSeconds: number, W = 1024, H = 1024, cores = 1) {
   const w = new World(W, H, seed);
   generateWorld(w, { cores });
   const sites = coreSites({ width: W, height: H, seed, cores });
+  w.coreShield = coreShieldLookup(sites);
   let siteIdx = 0;
   let site = sites[0];
   let coreLeft = sites.reduce((n, c) => n + countCoreCells(w, c), 0);
@@ -119,10 +120,14 @@ describe('MVP time to victory', () => {
 });
 
 describe('full game time to victory (1024×2048, 3 cores)', () => {
-  it('all three cores in 25-60 minutes for a simple bot', () => {
+  it('all three cores in 35-60 minutes, each later core ≥ 8 minutes after the previous', () => {
     const res = run(1337, 75 * 60, 1024, 2048, 3);
     console.log('full probe', JSON.stringify(res));
-    expect(res.victory).toBeGreaterThan(25 * 60);
+    expect(res.victory).toBeGreaterThan(35 * 60);
     expect(res.victory).toBeLessThan(60 * 60);
+    const t = res.coreTimes;
+    expect(t.length).toBe(3);
+    expect(t[1] - t[0]).toBeGreaterThan(8 * 60);
+    expect(t[2] - t[1]).toBeGreaterThan(8 * 60);
   }, 600_000);
 });

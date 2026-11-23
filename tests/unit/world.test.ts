@@ -97,3 +97,21 @@ describe('generator', () => {
     expect(w.chunks.every((c) => !c.modified)).toBe(true);
   });
 });
+
+describe('core shields', () => {
+  it('divides damage on core material only, by the containing core shield', async () => {
+    const { coreShieldLookup } = await import('../../src/world/generator');
+    const w = new World(128, 128, 1);
+    w.setMat(50, 50, Mat.CoreMaterial);
+    w.setMat(10, 10, Mat.CoreMaterial);
+    w.setMat(51, 50, Mat.Stone);
+    w.coreShield = coreShieldLookup([{ x: 50, y: 50, radius: 3, shell: 6, shield: 4 }]);
+    const full = MATERIALS[Mat.CoreMaterial].durability;
+    w.damage(50, 50, 400);
+    expect(full - w.getHp(50, 50)).toBe(100);
+    w.damage(10, 10, 400); // outside any core site → unshielded
+    expect(full - w.getHp(10, 10)).toBe(400);
+    w.damage(51, 50, 5); // stone next to the core is unaffected
+    expect(20 - w.getHp(51, 50)).toBe(5);
+  });
+});

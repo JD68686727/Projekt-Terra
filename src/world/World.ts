@@ -42,6 +42,8 @@ export class World {
   readonly seed: number;
   private readonly dirtyList: Chunk[] = [];
   onDestroy: DestroyListener | null = null;
+  /** Optional damage divisor for Core Material cells (resonance shields). */
+  coreShield: ((x: number, y: number) => number) | null = null;
   /** Called for every damage application on a solid cell (before hp check). */
   onHit: DestroyListener | null = null;
 
@@ -111,6 +113,7 @@ export class World {
     const m = c.mat[i] as Mat;
     if (m === Mat.Air) return Mat.Air;
     this.onHit?.(x, y, m);
+    if (m === Mat.CoreMaterial && this.coreShield) amount = Math.max(1, Math.floor(amount / this.coreShield(x, y)));
     const hp = c.hp[i];
     c.modified = true;
     this.markDirty(c, y & CHUNK_MASK);

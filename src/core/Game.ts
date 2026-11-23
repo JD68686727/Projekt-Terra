@@ -1,6 +1,6 @@
 import { Application, BufferImageSource, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { World } from '../world/World';
-import { CoreSite, SKY_FRACTION, VaultSite, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
+import { CoreSite, SKY_FRACTION, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
 import type { UpgradeId } from '../progression/upgrades';
 import { MATERIALS, Mat } from '../world/materials';
@@ -143,6 +143,7 @@ export class Game {
       const total = countCoreCells(this.world, site);
       this.cores.push({ site, total, remaining: total });
     }
+    this.world.coreShield = coreShieldLookup(this.cores.map((c) => c.site));
 
     const cx = Math.floor(opts.worldWidth / 2);
     const startY = surfaceY(cx, this.world) - 12;
