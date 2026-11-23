@@ -174,32 +174,55 @@ export function boulderSites(gx: number, gy: number, D: number, sizeCells: numbe
 }
 
 /**
- * Palette step for a boulder-field sub-pixel: each Voronoi cell is a stone
- * lit like a pillow from the upper left (flat middle, rounded rim), with
- * dark crevices between stones and a lit lip on their upper-left rims.
- * Clustered tones only — no dithering, no single-pixel noise.
+ * Palette step for natural rock (Stone / Dense Rock): large, flat,
+ * irregular rock masses (wide Voronoi slabs) instead of cobbles.
+ * - Interior: mostly one mid tone with broad clustered planes (no pillow shading).
+ * - Rim only: lit upper-left lip, shadowed lower-right band.
+ * - Seams between masses are broken (masses fuse in places), plus sparse
+ *   hairline cracks and occasional pebble clusters.
  */
 export function boulderStep(sx: number, sy: number, sites: Float32Array, seed: number): number {
-  let d1 = 1e9, d2 = 1e9, bx = 0, by = 0;
+  // Domain warp → wobbly, natural seams instead of straight polygon edges.
+  const wx = sx + (valueNoise(sx / 14, sy / 14, seed ^ 0x5c) - 0.5) * 14;
+  const wy = sy + (valueNoise(sx / 14, sy / 14, seed ^ 0x5d) - 0.5) * 10;
+  let d1 = 1e9, d2 = 1e9, bx = 0, by = 0, ox = 0, oy = 0;
   for (let k = 0; k < 18; k += 2) {
-    const dx = sx - sites[k];
-    const dy = (sy - sites[k + 1]) * 1.35; // slightly flattened stones
+    const dx = wx - sites[k];
+    const dy = (wy - sites[k + 1]) * 1.7; // wide, flat slabs
     const d = dx * dx + dy * dy;
-    if (d < d1) { d2 = d1; d1 = d; bx = sites[k]; by = sites[k + 1]; } else if (d < d2) d2 = d;
+    if (d < d1) { d2 = d1; ox = bx; oy = by; d1 = d; bx = sites[k]; by = sites[k + 1]; } else if (d < d2) { d2 = d; ox = sites[k]; oy = sites[k + 1]; }
   }
-  const r1 = Math.sqrt(d1);
-  const edge = Math.sqrt(d2) - r1;
-  if (edge < 1.6) return 0; // crevice between stones
-  const t = r1 / (r1 + edge * 0.5); // 0 centre → 1 rim
-  const len = r1 || 1;
-  const nx = (sx - bx) / len;
-  const ny = (sy - by) / len;
-  const k = t * t * t;
-  const pz = Math.sqrt(Math.max(0, 1 - k * k));
-  const l = nx * k * -0.55 + ny * k * -0.72 + pz * 0.42 + (hash01(Math.floor(bx), Math.floor(by), seed) - 0.5) * 0.12;
-  let s = l > 0.5 ? 3 : l > 0.32 ? 2 : l > 0.1 ? 1 : 0;
-  if (edge < 3.2 && nx * -0.55 + ny * -0.72 > 0.3) s = 4; // lit upper-left lip
-  return Math.max(1, s);
+  const edge = Math.sqrt(d2) - Math.sqrt(d1);
+  // Direction from this slab toward the neighbour across the nearest seam.
+  let nx = ox - bx;
+  let ny = (oy - by) * 1.7;
+  const nl = Math.hypot(nx, ny) || 1;
+  nx /= nl;
+  ny /= nl;
+  const facingLight = nx * -0.55 + ny * -0.72; // >0: seam is on the lit (upper-left) side
+  const seamVisible = valueNoise((sx + sy) / 22, (sx - sy) / 22, seed ^ 0x5e) > 0.32;
+  if (seamVisible && edge < 1.4) return 0; // seam (broken: masses fuse elsewhere)
+  if (seamVisible && edge < 3.5) return facingLight > 0.2 ? 4 : facingLight < -0.2 ? 1 : 2; // rim light / shadow
+  // Inside the mass: gently tilted strata (one tone step), each slab with its own tilt.
+  const tilt = (hash01(Math.floor(bx), Math.floor(by), seed ^ 0x60) - 0.5) * 0.5;
+  const band = valueNoise(sx / 60, (sy + sx * tilt) / 7, seed ^ 0x61);
+  let s = band > 0.6 ? 3 : band < 0.32 ? 1 : 2;
+  // Lower part of each slab sits in its own shadow.
+  if (wy - by > 6 && facingLight < -0.1 && edge < 9) s = Math.max(1, s - 1);
+  // Hairline cracks (thin, broken).
+  const cr = valueNoise(sx / 18, sy / 30, seed ^ 0x62);
+  if (Math.abs(cr - 0.5) < 0.012 && valueNoise(sx / 9, sy / 9, seed ^ 0x63) > 0.45) s = 0;
+  else if (Math.abs(cr - 0.5) < 0.03 && cr > 0.5) s = Math.min(3, s + 1);
+  // Pebble clusters in some masses.
+  if (hash01(Math.floor(bx), Math.floor(by), seed ^ 0x64) > 0.7) {
+    const p = hash01(sx >> 2, sy >> 2, seed ^ 0x65);
+    if (p > 0.9) {
+      const px = sx & 3;
+      const py = sy & 3;
+      if (!((px === 0 || px === 3) && (py === 0 || py === 3))) s = px + py <= 2 ? 3 : 1;
+    }
+  }
+  return s;
 }
 
 /** Grass tufts (clustered, not per-pixel): height in sub-pixels for column i of a surface cell. */

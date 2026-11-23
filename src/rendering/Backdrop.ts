@@ -4,6 +4,7 @@ import { hash01, valueNoise } from '../world/rng';
 import { Canvas, canvas, haze, hazeBand } from './backdrop/painters';
 import { Pal5, boulder, formation, softMountains } from './art/rock';
 import { Pal6, glowPlant, shrub, tree } from './art/foliage';
+import { Planet } from './art/Planet';
 
 /**
  * Sky & horizon, drawn at the same density as the HD terrain (ART art
@@ -45,6 +46,7 @@ export class Backdrop {
   private readonly front = new Container(); // 0.7
   private readonly stars: Sprite[] = [];
   private time = 0;
+  private planetArt!: Planet;
   private readonly horizon: number;
 
   constructor(private readonly width: number, height: number, private readonly seed: number) {
@@ -54,7 +56,12 @@ export class Backdrop {
     this.container.addChild(this.sky(top, skyH), this.far, this.mid, this.near, this.front);
     this.far.addChild(this.nebula(top));
     this.buildStars();
-    this.far.addChild(this.planet(), this.moon());
+    this.planetArt = new Planet(24 * ART, this.seed);
+    const ps = this.planetArt.sprite;
+    ps.scale.set(1 / ART);
+    ps.x = this.width / 2 + 34 + hash01(1, 99, this.seed) * 20;
+    ps.y = this.horizon - 75;
+    this.far.addChild(ps, this.moon());
     this.mid.addChild(this.layerFarMountains());
     this.near.addChild(this.layerFormations(0xe1, 0.5, 62, 6, 16, 'secondary'));
     this.front.addChild(this.layerFormations(0xe2, 0.14, 58, 5, 6, 'mid'));
@@ -122,10 +129,10 @@ export class Backdrop {
     ];
     for (const [x, y, c] of pts) set(cpx, 5, x, y, c);
     const cross = tex(5, 5, cpx);
-    for (let i = 0; i < 420; i++) {
+    for (let i = 0; i < 520; i++) {
       const kind = hash01(i, 4, this.seed);
-      const s = kind > 0.965 ? new Sprite(cross) : new Sprite(Texture.WHITE);
-      if (kind > 0.965) s.scale.set(1 / ART);
+      const s = kind > 0.955 ? new Sprite(cross) : new Sprite(Texture.WHITE);
+      if (kind > 0.955) s.scale.set((kind > 0.99 ? 2 : 1) / ART);
       else s.width = s.height = (kind > 0.8 ? 2 : 1) / ART;
       s.tint = hash01(i, 5, this.seed) > 0.75 ? 0xffd9b0 : hash01(i, 6, this.seed) > 0.5 ? 0xc8dcff : 0xffffff;
       s.x = (hash01(i, 1, this.seed) * 1.8 - 0.4) * this.width;
@@ -133,56 +140,6 @@ export class Backdrop {
       this.far.addChild(s);
       this.stars.push(s);
     }
-  }
-
-  /** Banded gas giant: turbulent bands, dithered terminator, atmosphere rim, storm, ring with a gap. */
-  private planet(): Sprite {
-    const r = 24 * ART;
-    const ringA = r * 1.7;
-    const size = Math.ceil(ringA * 2 + 8);
-    const px = new Uint8Array(size * size * 4);
-    const c = size / 2;
-    const pal = [0x1a0b2a, 0x2e1446, 0x481f58, 0x652c6e, 0x84417e, 0xa45e90, 0xc283a4];
-    const ca = Math.cos(-0.3);
-    const sa = Math.sin(-0.3);
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        const dx = x + 0.5 - c;
-        const dy = y + 0.5 - c;
-        const d = Math.hypot(dx, dy);
-        const u = dx * ca + dy * sa;
-        const v = -dx * sa + dy * ca;
-        const e = (u / ringA) ** 2 + (v / (r * 0.34)) ** 2;
-        const inRing = e > 0.72 && e < 1.02 && !(e > 0.84 && e < 0.88); // Cassini-like gap
-        const ringFront = inRing && v > 0;
-        if (d <= r && !ringFront) {
-          const lat = dy / r;
-          const turb = valueNoise(dx / 30, dy / 9, this.seed ^ 0x9a) * 1.4 + valueNoise(dx / 12, dy / 5, this.seed ^ 0x9b) * 0.25;
-          const band = (Math.sin(lat * 9 + turb * 2.2) * 0.5 + 0.5) * 2.4;
-          const nx = dx / r;
-          const ny = dy / r;
-          const nz = Math.sqrt(Math.max(0, 1 - nx * nx - ny * ny));
-          const light = Math.max(0, -nx * 0.55 - ny * 0.45 + nz * 0.7);
-          let step = Math.floor(band + light * 3.2 + bayer(x, y) * 0.9);
-          if (d > r - ART) step += 1; // atmosphere rim
-          const sx = dx - r * 0.25;
-          const sy = dy - r * 0.32;
-          if ((sx / (r * 0.16)) ** 2 + (sy / (r * 0.08)) ** 2 < 1) step += 1; // storm
-          set(px, size, x, y, pal[Math.max(0, Math.min(pal.length - 1, step))]);
-        } else if (inRing) {
-          if (!ringFront && d < r + 2) continue; // hidden right behind the disc
-          const t = (e - 0.72) / 0.3;
-          const col = mix(0xb88aa8, 0x6e4a78, t);
-          set(px, size, x, y, mix(0x1a1026, col, (ringFront ? 1 : 0.8) * (0.75 + 0.25 * bayer(x, y))));
-        }
-      }
-    }
-    const s = new Sprite(tex(size, size, px));
-    s.scale.set(1 / ART);
-    s.anchor.set(0.5);
-    s.x = this.width / 2 + 34 + hash01(1, 99, this.seed) * 20;
-    s.y = this.horizon - 75;
-    return s;
   }
 
   private moon(): Sprite {
@@ -287,6 +244,7 @@ export class Backdrop {
   /** Parallax + star twinkle. camX/camY = camera centre in cells. */
   update(dt: number, camX: number, camY: number): void {
     this.time += dt;
+    this.planetArt.update(dt);
     const place = (c: Container, f: number) => {
       c.x = (camX - this.width / 2) * (1 - f);
       c.y = (camY - this.horizon) * (1 - f) * 0.5;

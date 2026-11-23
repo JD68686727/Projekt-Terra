@@ -301,7 +301,7 @@ export class TerrainRenderer {
     const eL = 0;
     const eR = 0;
     const boulders = m === Mat.Stone || m === Mat.DenseRock;
-    if (boulders) boulderSites(gx, gy, D, m === Mat.Stone ? 7 : 11, seed ^ (m === Mat.Stone ? 0xb01 : 0xb02), this.sites);
+    if (boulders) boulderSites(gx, gy, D, m === Mat.Stone ? 15 : 22, seed ^ (m === Mat.Stone ? 0xb01 : 0xb02), this.sites);
     // Fake AO: no air within 2 cells → darker interior.
     const deep =
       !up && !down && !left && !right &&
