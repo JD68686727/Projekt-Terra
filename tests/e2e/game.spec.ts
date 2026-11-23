@@ -65,8 +65,9 @@ test('laser destroys terrain and awards MP', async ({ page }) => {
 test('keyboard moves the drone and Esc pauses', async ({ page }) => {
   await start(page);
   const x0 = await page.evaluate(() => window.__game!.drone.x);
+  // Long enough to be robust in slow software-rendered CI (fixed-step catch-up is capped).
   await page.keyboard.down('KeyD');
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(1500);
   await page.keyboard.up('KeyD');
   const x1 = await page.evaluate(() => window.__game!.drone.x);
   expect(x1).toBeGreaterThan(x0 + 3);
