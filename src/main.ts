@@ -4,7 +4,7 @@ import '@fontsource/pixelify-sans/700.css';
 import { Game } from './core/Game';
 import { Ui } from './ui/Ui';
 import { QUALITY_PRESETS, loadSettings } from './ui/settings';
-import { createPlatformAdapter } from './platform/BlakeridgeAdapter';
+import { createPlatformAdapter } from './platform/PlatformAdapter';
 import { GAME_TITLE, CORE_COUNT, DEFAULT_WORLD_WIDTH, DEFAULT_WORLD_HEIGHT } from './config/meta';
 import { generateMaterialsAsync } from './world/generateAsync';
 import { GENERATOR_VERSION } from './world/generator';

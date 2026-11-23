@@ -1,10 +1,10 @@
 /**
  * Platform integration boundary. The game talks only to this interface.
- * No Blakeridge SDK specification exists yet, so only a standalone
+ * No PlayGrid SDK specification exists yet, so only a standalone
  * implementation is provided. A real SDK adapter can be added later
  * without touching game code.
  */
-export interface BlakeridgeAdapter {
+export interface PlatformAdapter {
   readonly name: string;
   init(): Promise<void>;
   /** Loading progress 0..1. */
@@ -16,7 +16,7 @@ export interface BlakeridgeAdapter {
   onResume(cb: () => void): void;
 }
 
-export class StandaloneAdapter implements BlakeridgeAdapter {
+export class StandaloneAdapter implements PlatformAdapter {
   readonly name = 'standalone';
   async init(): Promise<void> {}
   loadingProgress(): void {}
@@ -26,6 +26,6 @@ export class StandaloneAdapter implements BlakeridgeAdapter {
   onResume(): void {}
 }
 
-export function createPlatformAdapter(): BlakeridgeAdapter {
+export function createPlatformAdapter(): PlatformAdapter {
   return new StandaloneAdapter();
 }

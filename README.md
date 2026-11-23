@@ -2,7 +2,7 @@
 
 *(working title — final name pending; change `src/config/meta.ts` + `<title>` in `index.html`)*
 
-Original 2D pixel-art incremental destruction game for the browser (HTML5 / WebGL), built for the Blakeridge platform. Break down a procedurally generated world cell by cell, upgrade your arsenal, automate the destruction and shatter three hidden resonance cores.
+Original 2D pixel-art incremental destruction game for the browser (HTML5 / WebGL), built for the PlayGrid platform. Break down a procedurally generated world cell by cell, upgrade your arsenal, automate the destruction and shatter three hidden resonance cores.
 
 ## Play locally
 ```bash

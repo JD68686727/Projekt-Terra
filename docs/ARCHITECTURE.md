@@ -9,7 +9,7 @@ src/
   weapons/    CuttingLaser
   effects/    Particles (pooled sprites)
   ui/         Ui (DOM overlay: menu, pause, HUD, perf), style.css
-  platform/   BlakeridgeAdapter (+ StandaloneAdapter)
+  platform/   PlatformAdapter (+ StandaloneAdapter)
   audio/ storage/ workers/   (M2/M4 — empty)
 ```
 

@@ -1,6 +1,6 @@
 import { defineConfig } from 'vite';
 
-// Relative base so the build works under any sub-path (Blakeridge hosting, iframes).
+// Relative base so the build works under any sub-path (PlayGrid hosting, iframes).
 export default defineConfig({
   base: './',
   build: {
