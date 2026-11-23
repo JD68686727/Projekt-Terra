@@ -51,7 +51,7 @@ test('laser destroys terrain and awards MP', async ({ page }) => {
   const canvas = page.locator('canvas');
   const box = (await canvas.boundingBox())!;
   // Aim below the drone (terrain) and hold fire.
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.9);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.78);
   await page.mouse.down();
   await page.waitForTimeout(2500);
   await page.mouse.up();
@@ -125,7 +125,7 @@ test('upgrade purchase increases laser power; pulse cannon unlocks and destroys 
   expect(await page.evaluate(() => window.__game!.weapon)).toBe('pulse');
   const before = await page.evaluate(() => window.__game!.stats.destroyed);
   const box = (await page.locator('canvas').boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.85);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.78);
   await page.mouse.down();
   await page.waitForTimeout(300);
   await page.screenshot({ path: 'test-results/pulse.png' });
@@ -143,13 +143,19 @@ test('resonance chain consumes a crystal vein and awards RF', async ({ page }) =
   const res = await page.evaluate(() => {
     const g = window.__game!;
     const w = g.world;
-    for (let y = 0; y < w.height; y++)
-      for (let x = 1; x < w.width - 1; x++)
+    // Veins are thin and the world seed is random: trigger a few separate veins.
+    let hits = 0;
+    let first: { x: number; y: number } | null = null;
+    for (let y = 0; y < w.height && hits < 4; y += 3)
+      for (let x = 1; x < w.width - 1 && hits < 4; x++)
         if (w.getMat(x, y) === 3 && w.getMat(x + 1, y) === 3 && w.getMat(x - 1, y) === 3) {
           w.damage(x, y, 1);
-          return { x, y };
+          first ??= { x, y };
+          hits++;
+          y += 40;
+          break;
         }
-    return null;
+    return first;
   });
   expect(res).not.toBeNull();
   await page.waitForTimeout(1500);
@@ -193,7 +199,7 @@ test('progress survives a page reload (IndexedDB) and Continue restores it', asy
   const errors = collectErrors(page);
   await start(page, URL + '?seed=4242');
   const box = (await page.locator('canvas').boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.9);
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.78);
   await page.mouse.down();
   await page.waitForTimeout(2000);
   await page.mouse.up();
@@ -292,7 +298,7 @@ test('drill, nano swarm and fracture charge each destroy terrain', async ({ page
   await page.keyboard.press('KeyU');
   await expect(page.locator('#weapon-drill')).toBeVisible();
   const box = (await page.locator('canvas').boundingBox())!;
-  const aim = { x: box.x + box.width / 2, y: box.y + box.height * 0.9 };
+  const aim = { x: box.x + box.width / 2, y: box.y + box.height * 0.78 };
   const destroyed = () => page.evaluate(() => window.__game!.stats.destroyed);
   await page.mouse.move(aim.x, aim.y);
 

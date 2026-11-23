@@ -79,3 +79,9 @@
 - Delegation: none in M1 — tasks were tightly coupled and small; subagent overhead exceeded benefit.
 
 Next: M2 (see docs/TASKS.md).
+
+## HUD redesign (post RC)
+- Hand-drawn 12×12 pixel icons (`src/ui/icons.ts`, char maps → data URLs).
+- Resource panel (MP/RF with icons, depth/destroyed/emitter stats), core compass (8-dir arrow, progress ring, distance, shield).
+- Action bar with square slots: icon, key badge, conic cooldown, lock state, affordable-upgrade badge.
+- Upgrade panel: wallet, category tabs, cards with icon, level pips and currency-coded buy buttons. All test IDs unchanged.

@@ -3,6 +3,7 @@ import type { Game, WeaponId } from '../core/Game';
 import { UPGRADES, UpgradeGroup, UpgradeId } from '../progression/upgrades';
 import { QUALITY_PRESETS, Quality, Settings, saveSettings } from './settings';
 import { TouchStick } from './TouchStick';
+import { IconName, icon } from './icons';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -12,6 +13,12 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 }
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('de-DE');
+/** Compact number: 12.345 → 12,3 K, 4.200.000 → 4,2 Mio. */
+const fmtShort = (n: number): string => {
+  if (n < 100_000) return fmt(n);
+  const [d, u] = n < 1e6 ? [1e3, 'K'] : n < 1e9 ? [1e6, 'Mio'] : [1e9, 'Mrd'];
+  return `${(n / d).toLocaleString('de-DE', { maximumFractionDigits: 1 })} ${u}`;
+};
 const GROUP_LABEL: Record<UpgradeGroup, string> = {
   laser: 'SCHNEIDLASER',
   pulse: 'PULSE CANNON',
@@ -23,11 +30,26 @@ const GROUP_LABEL: Record<UpgradeGroup, string> = {
   core: 'SYSTEME',
 };
 
+const GROUP_ICON: Record<UpgradeGroup, IconName> = {
+  laser: 'laser',
+  pulse: 'pulse',
+  drill: 'drill',
+  nano: 'nano',
+  fracture: 'fracture',
+  resonance: 'rf',
+  auto: 'auto',
+  core: 'core',
+};
+
 interface UpgradeRow {
   id: UpgradeId;
+  group: UpgradeGroup;
   root: HTMLElement;
   level: HTMLElement;
+  pips: HTMLElement[];
   cost: HTMLButtonElement;
+  costText: HTMLElement;
+  max: number;
 }
 
 /** DOM overlay UI: menus, HUD, weapon bar, upgrade panel, perf overlay. */
@@ -38,8 +60,21 @@ export class Ui {
   private readonly hud: HTMLElement;
   private readonly perf: HTMLElement;
   private readonly mpEl: HTMLElement;
-  private readonly infoEl: HTMLElement;
   private readonly rfEl: HTMLElement;
+  private readonly depthEl: HTMLElement;
+  private readonly destroyedEl: HTMLElement;
+  private readonly emEl: HTMLElement;
+  private readonly compass: HTMLElement;
+  private readonly compassArrow: HTMLElement;
+  private readonly scanTitle: HTMLElement;
+  private readonly scanDist: HTMLElement;
+  private readonly scanShield: HTMLElement;
+  private readonly upBadge: HTMLElement;
+  private readonly walletMp: HTMLElement;
+  private readonly walletRf: HTMLElement;
+  private readonly tabBtns = new Map<string, HTMLButtonElement>();
+  private readonly groupHeads: HTMLElement[] = [];
+  private tab: UpgradeGroup | 'all' = 'all';
   private readonly weaponBar: HTMLElement;
   private readonly weaponBtns = new Map<WeaponId, HTMLButtonElement>();
   private readonly pulseCd: HTMLElement;
@@ -56,7 +91,6 @@ export class Ui {
   private readonly toastEl: HTMLElement;
   private readonly victoryEl: HTMLElement;
   private readonly scanEl: HTMLElement;
-  private readonly coreBar: HTMLElement;
   private toastTimer = 0;
   /** Handlers wired by main.ts. */
   handlers = {
@@ -177,90 +211,164 @@ export class Ui {
     this.toastEl = el('div', 'toast hidden');
     this.toastEl.id = 'toast';
 
-    // HUD
+    // HUD — resources (top-left)
     this.hud = el('div', 'hud hidden');
-    const panel = el('div', 'hud-panel');
+    const res = el('div', 'hud-panel res-panel');
+    const mpRow = el('div', 'res-row res-mp');
     this.mpEl = el('div', 'hud-mp', '0 MP');
     this.mpEl.id = 'hud-mp';
-    this.infoEl = el('div', 'hud-info');
+    mpRow.append(icon('mp', 3), this.mpEl);
+    const rfRow = el('div', 'res-row res-rf');
     this.rfEl = el('div', 'hud-rf', '0 RF');
     this.rfEl.id = 'hud-rf';
+    rfRow.append(icon('rf', 2), this.rfEl);
+    const stats = el('div', 'stat-row');
+    const stat = (name: IconName, title: string): HTMLElement => {
+      const s = el('span', 'stat');
+      s.title = title;
+      const v = el('span', 'stat-v', '0');
+      s.append(icon(name, 2), v);
+      stats.append(s);
+      return v;
+    };
+    this.depthEl = stat('depth', 'Tiefe');
+    this.destroyedEl = stat('broken', 'Zerstörte Zellen');
+    this.emEl = stat('emitter', 'Emitter');
+    this.emEl.parentElement!.classList.add('hidden');
+    res.append(mpRow, rfRow, stats);
+
+    // HUD — core compass
+    const core = el('div', 'hud-panel core-widget');
+    this.compass = el('div', 'compass');
+    this.compassArrow = icon('arrow', 2, 'px-icon compass-arrow');
+    this.compass.append(this.compassArrow);
     this.scanEl = el('div', 'hud-scan');
     this.scanEl.id = 'hud-scan';
-    const barWrap = el('div', 'core-bar');
-    this.coreBar = el('div', 'core-bar-fill');
-    barWrap.append(this.coreBar);
-    panel.append(el('div', 'hud-label', 'MATERIAL POINTS'), this.mpEl, this.rfEl, this.infoEl, this.scanEl, barWrap);
-    this.hud.append(panel);
+    this.scanTitle = el('div', 'scan-title');
+    this.scanDist = el('div', 'scan-dist');
+    this.scanShield = el('div', 'scan-shield');
+    this.scanEl.append(this.scanTitle, this.scanDist, this.scanShield);
+    core.append(this.compass, this.scanEl);
+    this.hud.append(res, core);
 
-    // Weapon bar
+    // Action bar (bottom centre)
     this.weaponBar = el('div', 'weapon-bar hidden');
-    for (const [id, label] of [['laser', '1 LASER'], ['pulse', '2 PULSE'], ['drill', '3 DRILL'], ['nano', '4 NANO'], ['fracture', '5 FRACTURE']] as const) {
-      const b = el('button', 'weapon-btn', label);
-      b.id = `weapon-${id}`;
+    const slot = (id: string, name: IconName, key: string, label: string): HTMLButtonElement => {
+      const b = el('button', 'slot');
+      b.id = id;
+      b.title = `${label} [${key}]`;
+      b.append(el('span', 'slot-cd'), icon(name, 3), el('span', 'slot-key', key), el('span', 'slot-label', label), icon('lock', 2, 'px-icon slot-lock'));
+      return b;
+    };
+    const weapons = el('div', 'bar-group');
+    for (const [id, key, label] of [['laser', '1', 'LASER'], ['pulse', '2', 'PULSE'], ['drill', '3', 'DRILL'], ['nano', '4', 'NANO'], ['fracture', '5', 'FRACTURE']] as const) {
+      const b = slot(`weapon-${id}`, id, key, label);
       b.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         if (!this.game?.selectWeapon(id)) this.game?.sfx.denied();
       });
       this.weaponBtns.set(id, b);
-      this.weaponBar.append(b);
+      weapons.append(b);
     }
-    this.pulseCd = el('div', 'cooldown');
-    this.weaponBtns.get('pulse')!.append(this.pulseCd);
-    const upBtn = el('button', 'weapon-btn upgrade-toggle', 'U UPGRADES');
-    upBtn.id = 'btn-upgrades';
-    upBtn.addEventListener('pointerdown', (e) => {
-      e.stopPropagation();
-      this.toggleUpgrades();
-    });
-    for (const [id, label, act] of [
-      ['btn-auto', 'T AUTO', () => this.game?.toggleAuto()],
-      ['btn-emitter', 'E EMITTER', () => this.game?.placeEmitter()],
+    this.pulseCd = this.weaponBtns.get('pulse')!.querySelector('.slot-cd')!;
+    const tools = el('div', 'bar-group');
+    for (const [id, name, key, label, act] of [
+      ['btn-auto', 'auto', 'T', 'AUTO', () => this.game?.toggleAuto()],
+      ['btn-emitter', 'emitter', 'E', 'EMITTER', () => this.game?.placeEmitter()],
     ] as const) {
-      const b = el('button', 'weapon-btn', label);
-      b.id = id;
+      const b = slot(id, name, key, label);
       b.addEventListener('pointerdown', (e) => {
         e.stopPropagation();
         if (!act()) this.game?.sfx.denied();
       });
-      this.weaponBar.append(b);
+      tools.append(b);
     }
-    this.muteBtn = el('button', 'weapon-btn', '♪');
-    this.muteBtn.title = 'Ton an/aus (M)';
+    const upBtn = slot('btn-upgrades', 'upgrades', 'U', 'UPGRADES');
+    upBtn.classList.add('upgrade-toggle');
+    this.upBadge = el('span', 'slot-badge hidden', '0');
+    upBtn.append(this.upBadge);
+    upBtn.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      this.toggleUpgrades();
+    });
+    this.muteBtn = slot('btn-mute', 'sound', 'M', 'TON');
+    this.muteBtn.classList.add('slot-small');
     this.muteBtn.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.toggleMute();
     });
-    this.weaponBar.append(upBtn, this.muteBtn);
+    tools.append(upBtn, this.muteBtn);
+    this.weaponBar.append(weapons, el('div', 'bar-sep'), tools);
 
     // Upgrade panel
     this.panel = el('div', 'upgrade-panel hidden');
     this.panel.id = 'upgrade-panel';
     const head = el('div', 'panel-head');
-    head.append(el('span', undefined, 'UPGRADES'));
+    const title = el('span', 'panel-title');
+    title.append(icon('upgrades', 2), el('span', undefined, 'UPGRADES'));
+    const wallet = el('span', 'panel-wallet');
+    this.walletMp = el('span', 'w-mp');
+    this.walletRf = el('span', 'w-rf');
+    wallet.append(icon('mp', 1), this.walletMp, icon('rf', 1), this.walletRf);
     const close = el('button', 'panel-close', '×');
     close.addEventListener('click', () => this.toggleUpgrades(false));
-    head.append(close);
-    this.panel.append(head);
+    head.append(title, wallet, close);
+    const tabs = el('div', 'panel-tabs');
+    const tabDefs: [UpgradeGroup | 'all', IconName, string][] = [
+      ['all', 'upgrades', 'ALLE'],
+      ...(Object.keys(GROUP_LABEL) as UpgradeGroup[]).map((g) => [g, GROUP_ICON[g], GROUP_LABEL[g]] as [UpgradeGroup, IconName, string]),
+    ];
+    for (const [g, ic, label] of tabDefs) {
+      const t = el('button', 'tab');
+      t.dataset.g = g;
+      t.title = label;
+      t.append(icon(ic, 2));
+      t.classList.toggle('active', g === 'all');
+      t.addEventListener('click', () => {
+        this.tab = g;
+        tabs.querySelectorAll('.tab').forEach((x) => x.classList.toggle('active', (x as HTMLElement).dataset.g === g));
+        this.lastHud = 0;
+      });
+      this.tabBtns.set(g, t);
+      tabs.append(t);
+    }
+    const list = el('div', 'panel-list');
+    this.panel.append(head, tabs, list);
     let group: UpgradeGroup | null = null;
     for (const u of UPGRADES) {
       if (u.group !== group) {
         group = u.group;
-        this.panel.append(el('div', 'panel-group', GROUP_LABEL[group]));
+        const gh = el('div', 'panel-group', GROUP_LABEL[group]);
+        gh.dataset.g = group;
+        list.append(gh);
+        this.groupHeads.push(gh);
       }
       const row = el('div', 'upgrade-row');
       row.dataset.id = u.id;
+      row.dataset.g = u.group;
+      const ic = el('div', 'upgrade-icon');
+      ic.append(icon(GROUP_ICON[u.group], 2));
       const info = el('div', 'upgrade-info');
       const name = el('div', 'upgrade-name', u.name);
-      const level = el('span', 'upgrade-level');
-      name.append(level);
-      info.append(name, el('div', 'upgrade-desc', u.desc));
+      const level = el('div', 'upgrade-level');
+      const pips: HTMLElement[] = [];
+      if (u.maxLevel > 1 && u.maxLevel <= 10) {
+        for (let i = 0; i < u.maxLevel; i++) {
+          const pip = el('i', 'pip');
+          pips.push(pip);
+          level.append(pip);
+        }
+      }
+      info.append(name, el('div', 'upgrade-desc', u.desc), level);
       const cost = el('button', 'upgrade-buy');
       cost.id = `buy-${u.id}`;
+      const costIcon = icon(u.currency === 'rf' ? 'rf' : 'mp', 1);
+      const costText = el('span', 'cost-v');
+      cost.append(costIcon, costText);
       cost.addEventListener('click', () => this.buy(u.id));
-      row.append(info, cost);
-      this.panel.append(row);
-      this.rows.push({ id: u.id, root: row, level, cost });
+      row.append(ic, info, cost);
+      list.append(row);
+      this.rows.push({ id: u.id, group: u.group, root: row, level, pips, cost, costText, max: u.maxLevel });
     }
     // Keep panel interactions from reaching the game canvas.
     this.panel.addEventListener('pointerdown', (e) => e.stopPropagation());
@@ -395,23 +503,34 @@ export class Ui {
     const pr = game.progression;
     this.mpEl.textContent = `${fmt(pr.mp)} MP`;
     // Small amounts get a decimal so early resonance progress is visible.
-    this.rfEl.textContent = `${pr.rf < 10 ? pr.rf.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : fmt(pr.rf)} RF`;
+    const rfText = pr.rf < 10 ? pr.rf.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : fmt(pr.rf);
+    this.rfEl.textContent = `${rfText} RF`;
     const depth = Math.max(0, Math.floor(game.drone.y - game.world.height * 0.2));
     const em = pr.maxEmitters();
-    this.infoEl.textContent = `Zerstört: ${fmt(game.stats.destroyed)} · Tiefe: ${depth} m` + (em ? ` · Emitter ${game.emitters.length}/${em}` : '');
+    this.depthEl.textContent = `${depth} m`;
+    this.destroyedEl.textContent = fmtShort(game.stats.destroyed);
+    this.emEl.parentElement!.classList.toggle('hidden', em === 0);
+    this.emEl.textContent = `${game.emitters.length}/${em}`;
+
     const near = game.nearestCore();
-    if (near) {
-      const arrows = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
-      const a = Math.round(((Math.atan2(near.dy, near.dx) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8;
-      const idx = game.cores.indexOf(near.core) + 1;
-      const shield = near.core.site.shield > 1 ? ` · SCHILD ×${near.core.site.shield}` : '';
-      this.scanEl.textContent = `RESONANZKERN ${idx}/${game.cores.length} ${arrows[a]} ${Math.round(near.dist)} m${shield}`;
-    } else {
-      this.scanEl.textContent = game.cores.length ? 'ALLE KERNE ZERSTÖRT' : '';
-    }
     const total = game.cores.reduce((n, c) => n + c.total, 0);
     const left = game.cores.reduce((n, c) => n + c.remaining, 0);
-    this.coreBar.style.width = total ? `${Math.round(((total - left) / total) * 100)}%` : '0%';
+    this.compass.style.setProperty('--p', total ? String((total - left) / total) : '0');
+    if (near) {
+      // Snap to 8 directions so the pixel arrow stays crisp.
+      const a = Math.round(Math.atan2(near.dy, near.dx) / (Math.PI / 4)) * 45;
+      this.compassArrow.style.transform = `rotate(${a}deg)`;
+      this.compass.classList.remove('done');
+      const idx = game.cores.indexOf(near.core) + 1;
+      this.scanTitle.textContent = `RESONANZKERN ${idx}/${game.cores.length}`;
+      this.scanDist.textContent = `${Math.round(near.dist)} m`;
+      this.scanShield.textContent = near.core.site.shield > 1 ? `SCHILD ×${near.core.site.shield}` : '';
+    } else {
+      this.compass.classList.add('done');
+      this.scanTitle.textContent = game.cores.length ? 'ALLE KERNE ZERSTÖRT' : '';
+      this.scanDist.textContent = '';
+      this.scanShield.textContent = '';
+    }
     const autoBtn = this.root.querySelector('#btn-auto')!;
     autoBtn.classList.toggle('locked', !pr.autoTargetUnlocked());
     autoBtn.classList.toggle('active', game.autoMode);
@@ -422,24 +541,38 @@ export class Ui {
       b.classList.toggle('locked', !game.weaponUnlocked(id));
       b.classList.toggle('hidden', id !== 'laser' && id !== 'pulse' && !game.weaponUnlocked(id));
     }
-    const cd = game.pulse.cooldownLeft / game.pulse.stats.cooldown;
-    this.pulseCd.style.width = `${Math.round(Math.max(0, cd) * 100)}%`;
+    const cd = Math.max(0, game.pulse.cooldownLeft / game.pulse.stats.cooldown);
+    this.pulseCd.style.setProperty('--cd', cd.toFixed(3));
 
     // Count affordable upgrades for the toggle badge.
     let affordable = 0;
     const panelOpen = !this.panel.classList.contains('hidden');
+    const groupVisible = new Set<UpgradeGroup>();
     for (const r of this.rows) {
       const state = pr.check(r.id);
       if (state === 'ok') affordable++;
       if (!panelOpen) continue;
       const lvl = pr.level(r.id);
-      r.level.textContent = ` ${lvl}`;
-      r.root.classList.toggle('hidden', state === 'locked');
+      const show = state !== 'locked' && (this.tab === 'all' || this.tab === r.group);
+      r.root.classList.toggle('hidden', !show);
+      if (show) groupVisible.add(r.group);
+      r.root.classList.toggle('can-buy', state === 'ok');
+      r.root.classList.toggle('maxed', state === 'maxed');
+      if (r.pips.length) r.pips.forEach((p, i) => p.classList.toggle('on', i < lvl));
+      else r.level.textContent = r.max > 1 ? `STUFE ${lvl}/${r.max}` : lvl ? 'AKTIV' : '';
       r.cost.disabled = state !== 'ok';
-      r.cost.textContent = state === 'maxed' ? 'MAX' : `${fmt(pr.cost(r.id))} ${pr.currency(r.id).toUpperCase()}`;
+      r.costText.textContent = state === 'maxed' ? 'MAX' : fmtShort(pr.cost(r.id));
       r.cost.classList.toggle('rf', pr.currency(r.id) === 'rf');
     }
-    this.root.querySelector('#btn-upgrades')!.classList.toggle('glow', affordable > 0);
+    if (panelOpen) {
+      for (const gh of this.groupHeads) gh.classList.toggle('hidden', this.tab !== 'all' || !groupVisible.has(gh.dataset.g as UpgradeGroup));
+      this.walletMp.textContent = fmtShort(pr.mp);
+      this.walletRf.textContent = rfText;
+    }
+    const up = this.root.querySelector('#btn-upgrades')!;
+    up.classList.toggle('glow', affordable > 0);
+    this.upBadge.classList.toggle('hidden', affordable === 0);
+    this.upBadge.textContent = String(affordable);
 
     if (this.perfVisible) {
       const p = game.perf;
