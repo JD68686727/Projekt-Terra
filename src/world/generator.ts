@@ -10,8 +10,8 @@ export interface GenOptions {
 /** Surface height (in cells) for column x. Deterministic per seed. */
 export function surfaceY(x: number, world: World, skyFraction: number): number {
   const base = world.height * skyFraction;
-  const n = fbm(x / 48, 0.5, world.seed ^ 0x5eed, 4);
-  return Math.floor(base + (n - 0.5) * world.height * 0.08);
+  const n = fbm(x / 40, 0.5, world.seed ^ 0x5eed, 4);
+  return Math.floor(base + (n - 0.5) * world.height * 0.18);
 }
 
 /**
@@ -37,11 +37,11 @@ export function materialAt(x: number, y: number, world: World, surface: number):
 
   // Resonance crystal veins.
   const crystal = fbm(x / 10, y / 10, s ^ 0xc4157a1, 2);
-  if (crystal > 0.74 - depth * 0.05) return Mat.ResonanceCrystal;
+  if (crystal > 0.8 - depth * 0.06) return Mat.ResonanceCrystal;
 
   // Unstable ore pockets.
   const ore = valueNoise(x / 7, y / 7, s ^ 0x0e0e);
-  if (ore > 0.86 - depth * 0.06) return Mat.UnstableOre;
+  if (ore > 0.9 - depth * 0.06) return Mat.UnstableOre;
 
   // Stone → dense rock with depth, with noisy transition.
   const t = depth + (hash01(x, y, s ^ 0xd3) - 0.5) * 0.15 + (fbm(x / 30, y / 30, s ^ 0xde, 2) - 0.5) * 0.4;

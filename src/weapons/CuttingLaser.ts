@@ -13,7 +13,7 @@ export interface LaserStats {
   pierce: number;
 }
 
-export const DEFAULT_LASER: LaserStats = { dps: 90, range: 70, width: 1, pierce: 1 };
+export const DEFAULT_LASER: LaserStats = { dps: 160, range: 60, width: 1, pierce: 1 };
 
 export interface BeamResult {
   /** End point of the central lane in cell coordinates. */

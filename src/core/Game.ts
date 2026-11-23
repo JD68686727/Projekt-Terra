@@ -178,9 +178,8 @@ export class Game {
     if (this.firing) {
       this.laser.fire(this.world, this.drone.x, this.drone.y, this.aim.x, this.aim.y, h, this.beam);
       if (this.beam.hit && hash01(Math.floor(this.time * 60), 7, 1) < 0.6) {
-        const m = this.world.getMat(Math.floor(this.beam.endX + (this.aim.x - this.drone.x) * 0.001), Math.floor(this.beam.endY));
-        const c = m !== Mat.Air ? MATERIALS[m].color : 0xffb040;
-        this.particles.emit(this.beam.endX, this.beam.endY, (Math.random() - 0.5) * 40, -Math.random() * 30, Math.random() < 0.5 ? 0xffc060 : c, 0.25 + Math.random() * 0.2, 0.5, 30, true);
+        const c = Math.random() < 0.5 ? 0xffc060 : 0xff7a1a;
+        this.particles.emit(this.beam.endX, this.beam.endY, (Math.random() - 0.5) * 40, -Math.random() * 30, c, 0.25 + Math.random() * 0.2, 0.5, 30, true);
       }
     }
     this.particles.update(h);
