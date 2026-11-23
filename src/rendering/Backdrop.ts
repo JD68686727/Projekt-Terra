@@ -1,7 +1,7 @@
 import { BufferImageSource, Container, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { SKY_FRACTION } from '../world/generator';
 import { hash01, valueNoise } from '../world/rng';
-import { Canvas, canopy, canvas, conifer, glowDots, haze, hazeBand, mountains, trunk } from './backdrop/painters';
+import { Canvas, canvas, cliffs, cloud, haze, hazeBand, mountains } from './backdrop/painters';
 
 /**
  * Sky & horizon, drawn at the same density as the HD terrain (ART art
@@ -53,11 +53,11 @@ export class Backdrop {
     this.container.addChild(this.sky(top, skyH), this.far, this.mid, this.near, this.front, this.fore);
     this.far.addChild(this.nebula(top));
     this.buildStars();
-    this.far.addChild(this.planet(), this.moon());
+    this.far.addChild(this.planet(), this.moon(), this.clouds());
     this.mid.addChild(this.layerMountains());
-    this.near.addChild(this.layerConifers());
-    this.front.addChild(this.layerCanopyForest());
-    this.fore.addChild(this.layerNearGrove());
+    this.near.addChild(this.layerCliffs(0x0e1, 0.5, 70, 18, 0.75, 26));
+    this.front.addChild(this.layerCliffs(0x0e2, 0.22, 52, 26, 0.6, 24));
+    this.fore.addChild(this.layerCliffs(0x0e3, -0.25, 34, 34, 0.45, 22));
   }
 
   private sky(top: number, h: number): TilingSprite {
@@ -214,12 +214,11 @@ export class Backdrop {
   // (atmospheric perspective): far layers are lighter and flatter.
 
   private static readonly HAZE = 0x6a3a72;
-  private static readonly ROCK = [0x120e22, 0x241a3a, 0x3a2a56, 0x584279, 0x8064a0];
-  private static readonly PINE = [0x08161f, 0x0f2a38, 0x184154, 0x2a6470];
-  private static readonly LEAF = [0x05161a, 0x0b2e30, 0x124a46, 0x1b6a5c, 0x2b9474, 0x6ad6a6];
-  private static readonly BARK = [0x120c1a, 0x261a30, 0x3e2c48];
-  private static readonly GLOW_A = [0xb8fff0, 0x3ff0d0];
-  private static readonly GLOW_B = [0xffd6ff, 0xd070ff];
+  private static readonly DARK = 0x0a0816;
+  private static readonly ROCK = [0x0e0b16, 0x2a2438, 0x433a56, 0x5f5576, 0x8a7fa0];
+  private static readonly LEAF = [0x061412, 0x0d302c, 0x154c42, 0x206a58, 0x3c9478];
+  private static readonly GLOW = [0xb8fff0, 0x3ff0d0];
+  private static readonly CLOUD = [0x4a2a5e, 0x7a4e8a, 0xa680b0];
 
   private layerSprite(c: Canvas, baseOffsetCells: number): TilingSprite {
     const s = new TilingSprite({ texture: tex(c.w, c.h, c.px), width: this.width * 3 * ART, height: c.h });
@@ -236,59 +235,34 @@ export class Backdrop {
     return this.layerSprite(c, 26);
   }
 
-  private layerConifers(): TilingSprite {
-    const c = canvas(RIDGE_PERIOD * ART, 95 * ART);
-    const pal = haze(Backdrop.PINE, Backdrop.HAZE, 0.42);
-    const n = 70;
-    for (let i = 0; i < n; i++) {
-      const x = Math.floor(hash01(i, 1, this.seed ^ 0xb2) * c.w);
-      const h = Math.floor((28 + hash01(i, 2, this.seed ^ 0xb2) * 50) * ART);
-      conifer(c, x, c.h - 4 * ART, h, pal, this.seed ^ i);
-    }
-    hazeBand(c, Math.floor(c.h * 0.5), c.h, Backdrop.HAZE, 170);
-    return this.layerSprite(c, 24);
+  /**
+   * Cliff layer in the unified style. hazeT > 0 pushes toward the horizon
+   * haze (far), hazeT < 0 darkens toward silhouette (nearest layer).
+   */
+  private layerCliffs(salt: number, hazeT: number, maxHCells: number, colCells: number, density: number, offset: number): TilingSprite {
+    const c = canvas(RIDGE_PERIOD * ART, (maxHCells + 22) * ART);
+    const tone = (p: readonly number[]) => (hazeT >= 0 ? haze(p, Backdrop.HAZE, hazeT) : haze(p, Backdrop.DARK, -hazeT));
+    cliffs(c, c.h - 2, maxHCells * ART, colCells * ART, tone(Backdrop.ROCK), tone(Backdrop.LEAF), hazeT < 0.3 ? Backdrop.GLOW : null, this.seed ^ salt, density);
+    if (hazeT > 0) hazeBand(c, Math.floor(c.h * 0.55), c.h, Backdrop.HAZE, Math.round(120 + hazeT * 120));
+    else hazeBand(c, Math.floor(c.h * 0.75), c.h, 0x1a1028, 110);
+    return this.layerSprite(c, offset);
   }
 
-  private layerCanopyForest(): TilingSprite {
-    const c = canvas(RIDGE_PERIOD * ART, 80 * ART);
-    const leaf = haze(Backdrop.LEAF, Backdrop.HAZE, 0.34);
-    const bark = haze(Backdrop.BARK, Backdrop.HAZE, 0.34);
-    const n = 30;
-    for (let i = 0; i < n; i++) {
-      const x = Math.floor(((i + hash01(i, 1, this.seed ^ 0xc3) * 0.8) / n) * c.w);
-      const r = Math.floor((6 + hash01(i, 2, this.seed ^ 0xc3) * 5) * ART);
-      const top = Math.floor(c.h - (24 + hash01(i, 3, this.seed ^ 0xc3) * 22) * ART);
-      trunk(c, x, c.h - 1, top + r, Math.max(3, Math.floor(r / 6)), bark, this.seed ^ i);
-      canopy(c, x, top, r, leaf, (this.seed ^ 0xc3) + i * 131);
-    }
-    glowDots(c, 160, Backdrop.GLOW_A, this.seed ^ 0xc4);
-    hazeBand(c, Math.floor(c.h * 0.62), c.h, Backdrop.HAZE, 150);
-    return this.layerSprite(c, 22);
-  }
-
-  private layerNearGrove(): TilingSprite {
+  private clouds(): Container {
+    const layer = new Container();
     const c = canvas(RIDGE_PERIOD * ART, 60 * ART);
-    // Nearest layer is the darkest (silhouette-like), so the playfield stays readable.
-    const leaf = haze(Backdrop.LEAF, 0x0a0816, 0.5);
-    const bark = haze(Backdrop.BARK, 0x0a0816, 0.4);
-    const n = 18;
-    for (let i = 0; i < n; i++) {
-      const x = Math.floor(((i + hash01(i, 1, this.seed ^ 0xd4)) / n) * c.w);
-      const big = hash01(i, 4, this.seed ^ 0xd4) > 0.55;
-      if (big) {
-        const r = Math.floor((6 + hash01(i, 2, this.seed ^ 0xd4) * 4) * ART);
-        const top = Math.floor(c.h - (20 + hash01(i, 3, this.seed ^ 0xd4) * 12) * ART);
-        trunk(c, x, c.h - 1, top + r, Math.max(3, Math.floor(r / 5)), bark, this.seed ^ (i + 99));
-        canopy(c, x, top, r, leaf, (this.seed ^ 0xd4) + i * 197);
-      }
-      // Bushes along the ground line.
-      const br = Math.floor((4 + hash01(i, 5, this.seed ^ 0xd4) * 4) * ART);
-      canopy(c, x + Math.floor(c.w / n / 2), c.h - Math.floor(br * 0.55), br, leaf, (this.seed ^ 0xd5) + i * 61);
+    for (let i = 0; i < 9; i++) {
+      const x = Math.floor(hash01(i, 1, this.seed ^ 0xc1d) * c.w);
+      const y = Math.floor((20 + hash01(i, 2, this.seed ^ 0xc1d) * 30) * ART);
+      cloud(c, x, y, Math.floor((18 + hash01(i, 3, this.seed ^ 0xc1d) * 28) * ART), Backdrop.CLOUD, this.seed ^ i);
     }
-    glowDots(c, 50, Backdrop.GLOW_A, this.seed ^ 0xd6);
-    glowDots(c, 30, Backdrop.GLOW_B, this.seed ^ 0xd7);
-    hazeBand(c, Math.floor(c.h * 0.8), c.h, 0x2a1838, 120);
-    return this.layerSprite(c, 20);
+    const s = new TilingSprite({ texture: tex(c.w, c.h, c.px), width: this.width * 3 * ART, height: c.h });
+    s.scale.set(1 / ART);
+    s.x = -this.width;
+    s.y = this.horizon - 72;
+    s.alpha = 0.85;
+    layer.addChild(s);
+    return layer;
   }
 
   /** Parallax + star twinkle. camX/camY = camera centre in cells. */

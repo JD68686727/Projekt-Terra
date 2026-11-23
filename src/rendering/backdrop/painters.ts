@@ -214,3 +214,204 @@ export function glowDots(c: Canvas, n: number, pal: readonly number[], seed: num
     put(c, x, y - 1, pal[0]);
   }
 }
+
+// --- Unified style kit (ref: chunky cliff/waterfall pixel art) ------------
+// Palette layout for rock & foliage: [outline, dark, mid, light, highlight].
+
+/**
+ * One rock block: rounded corners, 1px dark outline (reads as crevices
+ * between blocks), lit top band + left edge, shaded right edge + bottom,
+ * mottled interior with cracks and specks.
+ */
+export function rockBlock(c: Canvas, x0: number, y0: number, w: number, h: number, pal: readonly number[], seed: number): void {
+  // Irregular, chunky outline: left/right insets change in steps every few rows.
+  const L = new Int16Array(h);
+  const R = new Int16Array(h);
+  const step = 3 + Math.floor(hash01(x0, y0, seed) * 3);
+  for (let j = 0; j < h; j++) {
+    const g = Math.floor(j / step);
+    let l = Math.floor(hash01(g, 1, seed + x0) * 4);
+    let r = Math.floor(hash01(g, 2, seed + x0) * 4);
+    // Rounded / chipped top corners, slightly tapered bottom.
+    if (j < 4) {
+      l += 4 - j + (hash01(x0, 3, seed) > 0.5 ? 2 : 0);
+      r += 4 - j;
+    }
+    if (j > h - 3) {
+      l += 1;
+      r += 1;
+    }
+    L[j] = l;
+    R[j] = r;
+  }
+  // Facet boundaries (lit | mid | shadow) jitter per row group → chunky planes.
+  for (let j = 0; j < h; j++) {
+    const inner = w - L[j] - R[j];
+    if (inner <= 2) continue;
+    const g = Math.floor(j / step);
+    const f1 = 0.2 + hash01(g, 5, seed + y0) * 0.12;
+    const f2 = 0.58 + hash01(g, 6, seed + y0) * 0.14;
+    for (let i = L[j]; i < w - R[j]; i++) {
+      const x = x0 + i;
+      const y = y0 + j;
+      const outside = (ii: number, jj: number) => jj < 0 || jj >= h || ii < L[jj] || ii >= w - R[jj];
+      const edge = outside(i - 1, j) || outside(i + 1, j) || outside(i, j - 1) || outside(i, j + 1);
+      let s: number;
+      if (edge) s = 0;
+      else if (outside(i, j - 2) || outside(i, j - 3)) s = outside(i, j - 2) ? 4 : 3; // lit top surfaces (also on ledges)
+      else {
+        const rel = (i - L[j]) / inner;
+        s = rel < f1 ? 3 : rel < f2 ? 2 : 1;
+        if (j >= h - 3) s = Math.max(1, s - 1);
+        if (hash01(x, y, seed ^ 0x52) > 0.993) s = Math.min(4, s + 1);
+      }
+      put(c, x, y, pal[s]);
+    }
+  }
+  // One or two deep cracks.
+  if (hash01(x0, y0, seed ^ 7) > 0.4) {
+    let cx = x0 + Math.floor(w * (0.3 + 0.4 * hash01(x0, 8, seed)));
+    for (let j = 4; j < h * 0.75; j++) {
+      if (hash01(j, x0, seed) > 0.7) cx += hash01(x0, j, seed) > 0.5 ? 1 : -1;
+      put(c, cx, y0 + j, pal[0]);
+      put(c, cx + 1, y0 + j, pal[3]);
+    }
+  }
+}
+
+/** Moss / grass cap on a block top: uneven tufts hanging slightly over the edge. */
+export function mossCap(c: Canvas, x0: number, y0: number, w: number, pal: readonly number[], seed: number): void {
+  for (let i = 1; i < w - 1; i++) {
+    const x = x0 + i;
+    const hUp = Math.floor(hash01(x, y0, seed) * 3);
+    const hDown = 1 + Math.floor(hash01(x, y0 + 1, seed) * (hash01(x, 3, seed) > 0.8 ? 5 : 2));
+    for (let j = -hUp; j < hDown; j++) {
+      const s = j < 0 ? 4 : j === 0 ? 3 : j === hDown - 1 ? 1 : 2;
+      put(c, x, y0 + j, pal[s]);
+    }
+  }
+}
+
+/** Hanging vine with leaf dots and an optional glowing flower at the end. */
+export function vine(c: Canvas, x: number, y0: number, len: number, leaf: readonly number[], glow: readonly number[] | null, seed: number): void {
+  let xx = x;
+  for (let j = 0; j < len; j++) {
+    if (hash01(x, j, seed) > 0.8) xx += hash01(j, x, seed) > 0.5 ? 1 : -1;
+    put(c, xx, y0 + j, leaf[j % 5 === 0 ? 3 : 2]);
+    if (j % 4 === 2) put(c, xx + (j % 8 === 2 ? 1 : -1), y0 + j, leaf[3]);
+  }
+  if (glow) {
+    put(c, xx, y0 + len, glow[0]);
+    put(c, xx - 1, y0 + len, glow[1]);
+    put(c, xx + 1, y0 + len, glow[1]);
+    put(c, xx, y0 + len + 1, glow[1]);
+  }
+}
+
+/**
+ * Bushy foliage clump in the same language as the rocks: overlapping
+ * blobs, clustered 3-tone shading lit from the upper left, full 1px
+ * outline, leaf-cluster highlights.
+ */
+export function bush(c: Canvas, cx: number, cy: number, r: number, pal: readonly number[], seed: number): void {
+  const k = 4 + Math.floor(hash01(cx, cy, seed) * 4);
+  const blobs: [number, number, number][] = [[cx, cy, r * 0.7]];
+  for (let i = 0; i < k; i++) {
+    const a = Math.PI + (i / (k - 1)) * Math.PI + (hash01(i, cx, seed) - 0.5) * 0.5; // upper half
+    blobs.push([cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.35, r * (0.38 + hash01(i, 7, seed) * 0.2)]);
+  }
+  // Pass 1: fill mask with shaded tones; pass 2 adds the outline.
+  const x0 = Math.floor(cx - r * 1.3);
+  const x1 = Math.ceil(cx + r * 1.3);
+  const y0 = Math.floor(cy - r * 1.1);
+  const y1 = Math.ceil(cy + r * 0.8);
+  const W = x1 - x0 + 3;
+  const H = y1 - y0 + 3;
+  const mask = new Int8Array(W * H).fill(-1);
+  for (const [bx, by, br] of blobs) {
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        const dx = (x + 0.5 - bx) / br;
+        const dy = (y + 0.5 - by) / br;
+        const bump = 1 - 0.16 * valueNoise(x / 2.6, y / 2.6, seed ^ 0x6b);
+        if (dx * dx + dy * dy > bump * bump) continue;
+        const nz = Math.sqrt(Math.max(0, 1 - dx * dx - dy * dy));
+        const l = -dx * 0.6 - dy * 0.65 + nz * 0.45 + (valueNoise(x / 3.5, y / 3.5, seed ^ 0x6c) - 0.5) * 0.7;
+        const s = l > 0.55 ? 4 : l > 0.15 ? 3 : l > -0.25 ? 2 : 1;
+        mask[(y - y0 + 1) * W + (x - x0 + 1)] = s;
+      }
+    }
+  }
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const v = mask[y * W + x];
+      const at = (xx: number, yy: number) => (xx < 0 || yy < 0 || xx >= W || yy >= H ? -1 : mask[yy * W + xx]);
+      if (v >= 0) put(c, x0 - 1 + x, y0 - 1 + y, pal[v]);
+      else if (at(x - 1, y) >= 0 || at(x + 1, y) >= 0 || at(x, y - 1) >= 0 || at(x, y + 1) >= 0) put(c, x0 - 1 + x, y0 - 1 + y, pal[0]);
+    }
+  }
+}
+
+/**
+ * Rock formation: columns of stacked blocks of varying height (ref: cliff
+ * walls), each column topped with moss and a bush, vines hanging down.
+ */
+export function cliffs(
+  c: Canvas,
+  baseY: number,
+  maxH: number,
+  colW: number,
+  rock: readonly number[],
+  leaf: readonly number[],
+  glow: readonly number[] | null,
+  seed: number,
+  density = 1,
+): void {
+  const cols = Math.floor(c.w / colW);
+  const tops: [number, number, number][] = [];
+  for (let k = 0; k < cols; k++) {
+    if (hash01(k, 1, seed) > density) continue;
+    const w = Math.floor(colW * (0.8 + hash01(k, 2, seed) * 0.6));
+    const x = k * colW + Math.floor((colW - w) / 2);
+    const height = Math.floor(maxH * (0.35 + 0.65 * Math.pow(hash01(k, 3, seed), 0.8)));
+    let y = baseY;
+    let i = 0;
+    while (y > baseY - height) {
+      const bh = Math.floor(colW * (0.7 + hash01(k, 10 + i, seed) * 0.6));
+      const shift = Math.floor((hash01(k, 30 + i, seed) - 0.5) * colW * 0.25);
+      const bw = Math.floor(w * (0.85 + hash01(k, 50 + i, seed) * 0.25));
+      rockBlock(c, x + shift, y - bh, bw, bh + 2, rock, seed + k * 97 + i);
+      y -= bh;
+      i++;
+    }
+    tops.push([x + Math.floor(w / 2), y, w]);
+  }
+  for (const [x, y, w] of tops) {
+    mossCap(c, x - Math.floor(w / 2), y + 1, w, leaf, seed ^ x);
+    if (hash01(x, 4, seed) > 0.4) bush(c, x + Math.floor((hash01(x, 5, seed) - 0.5) * w * 0.5), y - 1, Math.floor(w * (0.22 + hash01(x, 6, seed) * 0.16)), leaf, seed ^ (x * 7));
+    const nv = Math.floor(hash01(x, 8, seed) * 3);
+    for (let v = 0; v < nv; v++) {
+      const vx = x - Math.floor(w / 2) + 2 + Math.floor(hash01(x, 20 + v, seed) * (w - 4));
+      vine(c, vx, y + 2, Math.floor(w * (0.3 + hash01(x, 30 + v, seed) * 0.8)), leaf, glow && hash01(x, 40 + v, seed) > 0.5 ? glow : null, seed ^ vx);
+    }
+  }
+}
+
+/** Chunky pixel cloud: stacked rounded puffs, flat-ish bottom, two-tone shading. */
+export function cloud(c: Canvas, cx: number, cy: number, w: number, pal: readonly number[], seed: number): void {
+  const puffs = 3 + Math.floor(hash01(cx, cy, seed) * 3);
+  for (let p = 0; p < puffs; p++) {
+    const px = cx - w / 2 + (w * (p + 0.5)) / puffs;
+    const pr = (w / puffs) * (0.7 + hash01(p, cx, seed) * 0.5);
+    const py = cy - pr * 0.35 * (p === Math.floor(puffs / 2) ? 1.6 : 1);
+    for (let y = Math.floor(py - pr); y <= cy; y++) {
+      for (let x = Math.floor(px - pr); x <= Math.ceil(px + pr); x++) {
+        const dx = x - px;
+        const dy = y - py;
+        if (dx * dx + dy * dy > pr * pr) continue;
+        const s = dy < -pr * 0.45 ? 2 : y > cy - 2 ? 0 : 1;
+        put(c, x, y, pal[s]);
+      }
+    }
+  }
+}
