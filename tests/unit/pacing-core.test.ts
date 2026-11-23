@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../../src/world/World';
 import { coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY } from '../../src/world/generator';
 import { MATERIALS, Mat } from '../../src/world/materials';
-import { Progression } from '../../src/progression/Progression';
+import { Progression, RF_PER_RESONANCE } from '../../src/progression/Progression';
 import { CuttingLaser } from '../../src/weapons/CuttingLaser';
 import { PulseCannon } from '../../src/weapons/PulseCannon';
 import { Reactions } from '../../src/world/Reactions';
@@ -33,7 +33,7 @@ function run(seed: number, maxSeconds: number, W = 1024, H = 1024, cores = 1) {
   const frac = new FractureCharge(w, p.fractureStats());
   const r = new Reactions(w, p.reactionStats());
   const emitters: Emitter[] = [];
-  r.events.onResonance = () => p.earnRf(0.25);
+  r.events.onResonance = () => p.earnRf(RF_PER_RESONANCE);
   w.onHit = (x, y, m) => r.onHit(x, y, m);
   w.onDestroy = (x, y, m: Mat) => {
     p.earn(MATERIALS[m].value);

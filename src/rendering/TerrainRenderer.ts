@@ -152,6 +152,9 @@ export class TerrainRenderer {
       }
     }
     if (need.length) {
+      // A hole inside the actual view (not just the margin) gets a bigger budget.
+      const holeInView = need.some((c) => c.cx > this.cx0 && c.cx < this.cx1 && c.cy > this.cy0 && c.cy < this.cy1);
+      const budgetMs = holeInView ? 12 : this.fullPaintBudgetMs;
       const d = (c: Chunk) => (c.cx * CHUNK_SIZE + 32 - this.centreX) ** 2 + (c.cy * CHUNK_SIZE + 32 - this.centreY) ** 2;
       need.sort((a, b) => d(a) - d(b));
       const budget = this.firstPaintDone ? this.maxFullPaintsPerFrame : need.length;
@@ -159,13 +162,13 @@ export class TerrainRenderer {
       // per-frame time budget and shown only once complete (no half chunks).
       const tStart = performance.now();
       const unlimited = !this.firstPaintDone;
-      outer: for (let k = 0; k < Math.min(unlimited ? need.length : budget, need.length); k++) {
+      outer: for (let k = 0; k < Math.min(unlimited || holeInView ? need.length : budget, need.length); k++) {
         const c = need[k];
         const idx = c.cy * w.chunksX + c.cx;
         const v = this.byChunk[idx] ?? this.acquire(idx);
         if (!v) break;
         while (v.progress < CHUNK_SIZE) {
-          if (!unlimited && performance.now() - tStart > this.fullPaintBudgetMs) break outer;
+          if (!unlimited && performance.now() - tStart > budgetMs) break outer;
           const y1 = Math.min(CHUNK_SIZE - 1, v.progress + 7);
           this.paintRows(v, c, v.progress, y1);
           v.progress = y1 + 1;

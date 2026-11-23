@@ -7,6 +7,7 @@ import { QUALITY_PRESETS, loadSettings } from './ui/settings';
 import { createPlatformAdapter } from './platform/BlakeridgeAdapter';
 import { GAME_TITLE, CORE_COUNT, DEFAULT_WORLD_WIDTH, DEFAULT_WORLD_HEIGHT } from './config/meta';
 import { generateMaterialsAsync } from './world/generateAsync';
+import { GENERATOR_VERSION } from './world/generator';
 import { createSaveStore, SaveStore } from './storage/SaveStore';
 import type { SaveData } from './storage/saveFormat';
 
@@ -148,6 +149,9 @@ async function boot(): Promise<void> {
     const mats = await generateMaterialsAsync({ width, height, seed, cores: CORE_COUNT }, (p) => progress(p * 0.9));
     const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores: CORE_COUNT, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
     if (data) {
+      if (data.generator !== GENERATOR_VERSION) {
+        ui.toast('Spielstand aus einer älteren Weltversion: Unberührte Bereiche wurden neu erzeugt.', false, 7000);
+      }
       try {
         g.applySave(data);
       } catch (e) {

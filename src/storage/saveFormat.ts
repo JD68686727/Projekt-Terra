@@ -2,7 +2,7 @@ import { FOG_CELL, fogRleValid } from '../world/FogMap';
 import { CHUNK_SIZE, type Chunk, type World } from '../world/World';
 import { MATERIALS } from '../world/materials';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 const CELLS = CHUNK_SIZE * CHUNK_SIZE;
 const MAX_DIM = 8192;
@@ -35,6 +35,8 @@ export interface SaveData {
   nano: { x: number; y: number } | null;
   /** v3: fog of war, RLE of revealed flags (FogMap.encode), or null. */
   fog: Uint8Array | null;
+  /** v4: terrain generator version the world was created with. */
+  generator: number;
   chunks: SavedChunk[];
 }
 
@@ -152,6 +154,7 @@ export function validateSave(data: unknown): data is SaveData {
   if (!fin(data.prestige) || (data.prestige as number) < 0 || !Number.isInteger(data.prestige)) return false;
   if (!Array.isArray(data.vaults) || data.vaults.length > 64 || data.vaults.some((v) => typeof v !== 'boolean')) return false;
   if (data.nano !== null && (!isObj(data.nano) || !fin(data.nano.x) || !fin(data.nano.y))) return false;
+  if (!fin(data.generator) || (data.generator as number) < 1) return false;
   if (data.fog !== null) {
     if (!(data.fog instanceof Uint8Array)) return false;
     const total = Math.ceil((data.width as number) / FOG_CELL) * Math.ceil((data.height as number) / FOG_CELL);
@@ -173,5 +176,6 @@ export function migrateSave(data: unknown): unknown {
   let d: Record<string, unknown> = data;
   if (d.version === 1) d = { ...d, version: 2, prestige: 0, vaults: [], nano: null };
   if (d.version === 2) d = { ...d, version: 3, fog: null };
+  if (d.version === 3) d = { ...d, version: 4, generator: 1 };
   return d;
 }

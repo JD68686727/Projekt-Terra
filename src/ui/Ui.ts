@@ -394,7 +394,8 @@ export class Ui {
     this.lastHud = now;
     const pr = game.progression;
     this.mpEl.textContent = `${fmt(pr.mp)} MP`;
-    this.rfEl.textContent = `${fmt(pr.rf)} RF`;
+    // Small amounts get a decimal so early resonance progress is visible.
+    this.rfEl.textContent = `${pr.rf < 10 ? pr.rf.toLocaleString('de-DE', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) : fmt(pr.rf)} RF`;
     const depth = Math.max(0, Math.floor(game.drone.y - game.world.height * 0.2));
     const em = pr.maxEmitters();
     this.infoEl.textContent = `Zerstört: ${fmt(game.stats.destroyed)} · Tiefe: ${depth} m` + (em ? ` · Emitter ${game.emitters.length}/${em}` : '');

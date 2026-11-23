@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Sprite } from 'pixi.js';
 import { SPRITE_SCALE, sprites } from '../rendering/sprites';
 import { World } from '../world/World';
-import { CoreSite, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
+import { CoreSite, GENERATOR_VERSION, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
 import type { UpgradeId } from '../progression/upgrades';
 import { MATERIALS, Mat } from '../world/materials';
@@ -19,7 +19,7 @@ import { PulseCannon } from '../weapons/PulseCannon';
 import { DrillLauncher } from '../weapons/DrillMissile';
 import { NanoSwarm } from '../weapons/NanoSwarm';
 import { FractureCharge } from '../weapons/FractureCharge';
-import { Progression } from '../progression/Progression';
+import { Progression, RF_PER_RESONANCE } from '../progression/Progression';
 import { Sfx } from '../audio/Sfx';
 import { Reactions } from '../world/Reactions';
 import { Emitter } from '../automation/Emitter';
@@ -185,7 +185,7 @@ export class Game {
     };
     this.reactions.events = {
       onResonance: (x, y) => {
-        this.progression.earnRf(0.25);
+        this.progression.earnRf(RF_PER_RESONANCE);
         this.particles.emit(x + 0.5, y + 0.5, (Math.random() - 0.5) * 20, (Math.random() - 0.5) * 20, Math.random() < 0.5 ? 0xffffff : 0x7ff0ff, 0.45, 0.8, 0, true);
         this.sfx.resonance();
       },
@@ -589,6 +589,7 @@ export class Game {
       vaults: this.vaults.map((v) => v.found),
       nano: this.nano.active ? { x: this.nano.anchorX, y: this.nano.anchorY } : null,
       fog: this.fog.encode(),
+      generator: GENERATOR_VERSION,
       chunks: serializeChunks(this.world),
     };
   }

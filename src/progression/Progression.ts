@@ -7,6 +7,9 @@ import type { DrillStats } from '../weapons/DrillMissile';
 import type { SwarmStats } from '../weapons/NanoSwarm';
 import type { FractureStats } from '../weapons/FractureCharge';
 
+/** Resonance Fragments per crystal cell consumed by a resonance chain. */
+export const RF_PER_RESONANCE = 0.15;
+
 export type BuyResult = 'ok' | 'maxed' | 'locked' | 'insufficient';
 
 /** Wallet + upgrade levels, and derivation of gameplay stats from them. */
@@ -78,7 +81,7 @@ export class Progression {
   reactionStats(): ReactionStats {
     const l = this.levels;
     return {
-      resonanceDepth: 6 + 4 * l.resonanceDepth,
+      resonanceDepth: 4 + 4 * l.resonanceDepth,
       oreChance: Math.min(0.9, 0.25 + 0.08 * l.oreVolatility),
       oreRadius: 2.5 + 0.5 * l.oreVolatility,
       oreDamage: 45 * Math.pow(1.25, l.oreVolatility),

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { World } from '../../src/world/World';
 import { generateWorld, surfaceY } from '../../src/world/generator';
 import { MATERIALS, Mat } from '../../src/world/materials';
-import { Progression } from '../../src/progression/Progression';
+import { Progression, RF_PER_RESONANCE } from '../../src/progression/Progression';
 import { CuttingLaser } from '../../src/weapons/CuttingLaser';
 import { UPGRADES } from '../../src/progression/upgrades';
 import { Reactions } from '../../src/world/Reactions';
@@ -18,7 +18,7 @@ function simulate(seconds: number) {
   const p = new Progression();
   const laser = new CuttingLaser(p.laserStats());
   const r = new Reactions(w, p.reactionStats());
-  r.events.onResonance = () => p.earnRf(0.25);
+  r.events.onResonance = () => p.earnRf(RF_PER_RESONANCE);
   w.onHit = (x, y, m) => r.onHit(x, y, m);
   w.onDestroy = (x, y, m: Mat) => {
     p.earn(MATERIALS[m].value);

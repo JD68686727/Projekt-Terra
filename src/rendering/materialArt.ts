@@ -67,15 +67,13 @@ export function subStep(m: Mat, sx: number, sy: number, gx: number, gy: number, 
       return 1 + Math.min(2, facet);
     }
     case Mat.UnstableOre: {
-      const nug = hash01(sx >> 2, sy >> 2, seed ^ 0x81);
-      if (nug > 0.5) {
-        const px = sx & 3;
-        const py = sy & 3;
-        if ((px === 0 || px === 3) && (py === 0 || py === 3)) return 1;
-        return px + py <= 2 ? 4 : 3; // glowing nugget with hot highlight
-      }
-      if (nug > 0.42) return 2;
-      return bayer(sx, sy) < valueNoise(sx / (5 * D), sy / (5 * D), seed ^ 0x83) * 0.8 ? 1 : 0;
+      // Continuous molten-metal seam: hot core, bright streaks along the
+      // vein, darker slag grains — reads as one vein, not as beads.
+      if ((sx + sy * 2 + 1_000_000) % 9 < 2) return 4;
+      const g = hash01(sx >> 1, sy >> 1, seed ^ 0x81);
+      if (g > 0.82) return 1;
+      if (g > 0.7) return 2;
+      return 3;
     }
     case Mat.TitaniumMatrix: {
       // Riveted armour plates 8×6 cells, bevelled, with scratches.

@@ -3,6 +3,8 @@ import { Mat } from './materials';
 import { fbm, hash01, valueNoise } from './rng';
 
 export const SKY_FRACTION = 0.2;
+/** Bump when terrain generation changes (stored in saves). */
+export const GENERATOR_VERSION = 2;
 
 export interface WorldSpec {
   width: number;
@@ -75,10 +77,17 @@ function baseMaterial(x: number, y: number, height: number, seed: number, surfac
     const band = valueNoise(x / 40, y / 6, seed ^ 0x7171);
     if (band > 0.8) return Mat.TitaniumMatrix;
   }
-  const crystal = fbm(x / 10, y / 10, seed ^ 0xc4157a1, 2);
-  if (crystal > 0.8 - depth * 0.06) return Mat.ResonanceCrystal;
-  const ore = valueNoise(x / 7, y / 7, seed ^ 0x0e0e);
-  if (ore > 0.9 - depth * 0.06) return Mat.UnstableOre;
+  // Mineral veins: ridged noise (1 - |2n - 1|) traces thin, winding seams.
+  // Domain-warped so veins meander; a second noise breaks them into
+  // segments; veins thicken slightly with depth.
+  const wx = x + (valueNoise(x / 23, y / 23, seed ^ 0x7a1) - 0.5) * 26;
+  const wy = y + (valueNoise(x / 23, y / 23, seed ^ 0x7a2) - 0.5) * 26;
+  const cv = 1 - Math.abs(fbm(wx / 34, wy / 26, seed ^ 0xc4157a1, 3) * 2 - 1);
+  if (cv > 0.985 - depth * 0.02 && valueNoise(x / 45, y / 45, seed ^ 0xc41) > 0.36) return Mat.ResonanceCrystal;
+  const ov = 1 - Math.abs(fbm(wy / 20, wx / 28, seed ^ 0x0e0e, 2) * 2 - 1);
+  if (ov > 0.984 - depth * 0.015 && valueNoise(x / 30, y / 30, seed ^ 0x0e1) > 0.42) return Mat.UnstableOre;
+  // Ore nodules strung along a few veins.
+  if (ov > 0.93 && hash01(x >> 1, y >> 1, seed ^ 0x0e2) > 0.95) return Mat.UnstableOre;
   const t = depth + (hash01(x, y, seed ^ 0xd3) - 0.5) * 0.15 + (fbm(x / 30, y / 30, seed ^ 0xde, 2) - 0.5) * 0.4;
   return t > 0.35 ? Mat.DenseRock : Mat.Stone;
 }

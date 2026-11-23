@@ -155,8 +155,8 @@ test('resonance chain consumes a crystal vein and awards RF', async ({ page }) =
   await page.waitForTimeout(1500);
   const r = await page.evaluate(() => ({ rf: window.__game!.progression.rf, resonated: window.__game!.reactions.resonated }));
   expect(r.resonated).toBeGreaterThan(3);
-  expect(r.rf).toBeGreaterThan(0.5);
-  await expect(page.locator('#hud-rf')).not.toHaveText('0 RF');
+  expect(r.rf).toBeGreaterThan(0.3);
+  await expect(page.locator('#hud-rf')).not.toHaveText('0,0 RF');
   expect(errors).toEqual([]);
 });
 
