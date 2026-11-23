@@ -48,7 +48,10 @@ function patternStep(m: Mat, gx: number, gy: number, seed: number): number {
       // Sedimentary strata, gently warped, with dithered transitions and pebbles.
       const warp = valueNoise(gx / 22, gy / 22, seed ^ 0x51) * 6;
       const band = valueNoise(gx / 30, (gy + warp) / 3.2, seed ^ 0x52);
-      let s = 1 + Math.floor(band * 2) + dither(gx, gy, (band * 2) % 1);
+      // Dither only in the narrow transition between two strata; solid elsewhere.
+      const f = (band * 2) % 1;
+      const t = f < 0.38 ? 0 : f > 0.62 ? 1 : dither(gx, gy, (f - 0.38) / 0.24);
+      let s = 1 + Math.floor(band * 2) + t;
       const pebble = hash01(gx >> 1, gy >> 1, seed ^ 0x53);
       if (pebble > 0.93) s = 3 + (hash01(gx, gy, seed) > 0.5 ? 1 : 0);
       else if (pebble < 0.04) s = 0;

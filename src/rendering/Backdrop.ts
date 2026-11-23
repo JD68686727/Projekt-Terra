@@ -75,7 +75,7 @@ export class Backdrop {
     const r = 22;
     const size = r * 2 + 16;
     const px = new Uint8Array(size * size * 4);
-    const pal = [[40, 18, 60], [70, 30, 90], [112, 52, 120], [168, 92, 150], [220, 150, 170]];
+    const pal = [[34, 16, 52], [60, 28, 82], [96, 46, 112], [138, 74, 138], [176, 108, 154]];
     const c = size / 2;
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
@@ -83,27 +83,32 @@ export class Backdrop {
         const dy = y + 0.5 - c;
         const p = (y * size + x) * 4;
         const d = Math.hypot(dx, dy);
-        // Ring: thin tilted ellipse behind/in front of the disc.
-        const ry = (dy - dx * 0.25) * 4.2;
-        const rd = Math.hypot(dx, ry);
-        const onRing = rd > r * 1.35 && rd < r * 1.55;
+        // Ring: thin tilted ellipse; the lower half passes in front of the disc.
+        const ca = Math.cos(-0.28);
+        const sa = Math.sin(-0.28);
+        const u = dx * ca + dy * sa;
+        const v = -dx * sa + dy * ca;
+        const e = (u / (r * 1.55)) ** 2 + (v / (r * 0.32)) ** 2;
+        const onRing = Math.abs(e - 1) < 0.16;
+        const ry = v;
         if (d <= r) {
           const band = valueNoise(0, (dy + 30) / 3.5, this.seed ^ 0x9a) * 2 + (fbm(dx / 9, dy / 3, this.seed ^ 0x9b, 2) - 0.5);
           const light = (-dx * 0.6 - dy * 0.8) / r; // lit from top-left
           let step = Math.round(1.5 + band + light * 1.6);
           if (d > r - 1) step -= 1; // dark rim
           step = Math.max(0, Math.min(4, step));
-          if (onRing && ry > 0) step = 4; // ring passes in front on the lower half
+          if (onRing && ry > 0) step = 3; // ring passes in front on the lower half
           const col = pal[step];
           px[p] = col[0];
           px[p + 1] = col[1];
           px[p + 2] = col[2];
           px[p + 3] = 255;
         } else if (onRing) {
-          px[p] = 190;
-          px[p + 1] = 130;
-          px[p + 2] = 160;
-          px[p + 3] = 200;
+          const inner = e < 1;
+          px[p] = inner ? 150 : 118;
+          px[p + 1] = inner ? 104 : 80;
+          px[p + 2] = inner ? 136 : 116;
+          px[p + 3] = 255;
         }
       }
     }

@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-11-23 — Art pass ("indie detail")
+- Terrain palettes/patterns per material, moss, rims, AO; depth darkness + rig light; bloom; parallax pixel sky with gas giant; natural cave back-wall with props; dust motes; pixel sprites for rig/emitters; pixel font + framed UI.
+- Fixed during review: stretched sky dither, off-screen planet/stars, brick-like back-wall, bloom filterArea clipping half the screen, messy planet ring, noisy stone dithering.
+- Tests: 100 unit, 15 e2e still green. Terrain repaint cost ~1 ms avg/frame (was 0.06 ms) due to richer per-cell shading.
+
 ## 2026-11-23 — M6 complete (release candidate 0.9.0)
 - Pacing: per-core resonance shields ×1/×3/×6 (damage divisor on Core Material) → bot cores at 18.4 / 29.3 / 43.3 min (gaps 11 / 14 min, pinned by test). Scanner shows core index and shield.
 - Touch: virtual joystick (coarse pointers / first touch), merged into Input; phones start at zoom 5.

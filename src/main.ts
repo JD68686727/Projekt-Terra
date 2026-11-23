@@ -1,4 +1,6 @@
 import { Application } from 'pixi.js';
+import '@fontsource/pixelify-sans/400.css';
+import '@fontsource/pixelify-sans/700.css';
 import { Game } from './core/Game';
 import { Ui } from './ui/Ui';
 import { QUALITY_PRESETS, loadSettings } from './ui/settings';

@@ -1,4 +1,5 @@
-import { Application, Container, Graphics } from 'pixi.js';
+import { Application, Container, Graphics, Sprite } from 'pixi.js';
+import { SPRITE_SCALE, sprites } from '../rendering/sprites';
 import { World } from '../world/World';
 import { CoreSite, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
@@ -116,7 +117,8 @@ export class Game {
   private readonly terrain: TerrainRenderer;
   private readonly particles: Particles;
   private readonly beamGfx = new Graphics();
-  private readonly droneGfx = new Graphics();
+  private readonly droneSprite = new Sprite();
+  private readonly emitterSprites = new Container();
   private readonly waveGfx = new Graphics();
   private readonly emitterGfx = new Graphics();
   private readonly lighting = new Lighting();
@@ -203,7 +205,10 @@ export class Game {
     this.scene.addChild(this.waveGfx);
     this.scene.addChild(this.emitterGfx);
     this.scene.addChild(this.beamGfx);
-    this.scene.addChild(this.droneGfx);
+    this.scene.addChild(this.emitterSprites);
+    this.droneSprite.anchor.set(0.5, 0.45);
+    this.droneSprite.scale.set(SPRITE_SCALE);
+    this.scene.addChild(this.droneSprite);
     app.stage.addChild(this.scene);
     if (opts.bloom) {
       const bloom = new AdvancedBloomFilter({ threshold: 0.55, bloomScale: 0.9, brightness: 1, blur: 4, quality: 4 });
@@ -637,10 +642,21 @@ export class Game {
         g.moveTo(e.x, e.y).lineTo(e.beam.endX, e.beam.endY).stroke({ width: 0.3, color: 0xdfffff, alpha: 0.95 });
         g.circle(e.beam.endX, e.beam.endY, 0.8).fill({ color: 0x9ff4ff, alpha: 0.7 });
       }
-      g.rect(e.x - 1, e.y - 1, 2, 2).fill(0x1b2433);
-      g.rect(e.x - 1, e.y - 1, 2, 0.4).fill(0x4a5a74);
-      g.rect(e.x - 0.4, e.y - 0.4, 0.8, 0.8).fill(e.firing ? 0x29d8f0 : 0x335566);
     }
+    // Emitter sprites (pooled to the emitter count).
+    const tex = sprites().emitter;
+    while (this.emitterSprites.children.length < this.emitters.length) {
+      const sp = new Sprite(tex.idle);
+      sp.anchor.set(0.5);
+      sp.scale.set(SPRITE_SCALE);
+      this.emitterSprites.addChild(sp);
+    }
+    while (this.emitterSprites.children.length > this.emitters.length) this.emitterSprites.removeChildAt(0).destroy();
+    this.emitters.forEach((e, i) => {
+      const sp = this.emitterSprites.children[i] as Sprite;
+      sp.texture = e.firing ? tex.active : tex.idle;
+      sp.position.set(e.x, e.y);
+    });
   }
 
   private drawWaves(): void {
@@ -675,20 +691,15 @@ export class Game {
   }
 
   private drawDrone(): void {
-    const g = this.droneGfx;
-    const x = this.drone.x;
-    const y = this.drone.y + Math.sin(this.time * 4) * 0.15;
-    g.clear();
-    // Hull
-    g.rect(x - 1.5, y - 1, 3, 2).fill(0x2a3140);
-    g.rect(x - 1.5, y - 1, 3, 0.5).fill(0x56637a);
-    // Thrusters
-    g.rect(x - 2, y - 0.5, 0.5, 1.5).fill(0x1b2029);
-    g.rect(x + 1.5, y - 0.5, 0.5, 1.5).fill(0x1b2029);
-    g.rect(x - 2, y + 1, 0.5, 0.4 + Math.random() * 0.4).fill({ color: 0x29d8f0, alpha: 0.8 });
-    g.rect(x + 1.5, y + 1, 0.5, 0.4 + Math.random() * 0.4).fill({ color: 0x29d8f0, alpha: 0.8 });
-    // Core eye
-    g.rect(x - 0.5, y - 0.5, 1, 1).fill(this.firing ? 0xffb040 : 0x29d8f0);
+    const set = sprites().rig;
+    const frames = this.firing ? set.firing : set.idle;
+    const sp = this.droneSprite;
+    sp.texture = frames[Math.floor(this.time * 12) & 1];
+    sp.position.set(this.drone.x, this.drone.y + Math.sin(this.time * 4) * 0.15);
+    // Face the aim point and lean into the flight direction.
+    const face = this.aim.x < this.drone.x ? -1 : 1;
+    sp.scale.set(SPRITE_SCALE * face, SPRITE_SCALE);
+    sp.rotation = Math.max(-0.3, Math.min(0.3, this.drone.vx * 0.008));
   }
 
   destroy(): void {

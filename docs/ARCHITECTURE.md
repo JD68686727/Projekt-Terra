@@ -39,3 +39,11 @@ src/
 - `storage/` versioned save format (v2) + IndexedDB store with backup rotation.
 - Renderer upload budget: ≤48 chunks per frame, visible chunks first; remaining chunks re-queued.
 - `ui/TouchStick.ts` virtual joystick (axis merged into `Input.stick`).
+
+## Art pass (post-M6)
+- `rendering/materialArt.ts`: 5-step palettes per material + pattern functions (strata, cracks, crystal facets, ore nuggets, riveted titanium plates, core energy rings), top-lit edges, undersides, fake AO, surface moss. Pure functions of world coords → seamless, zero texture memory.
+- `rendering/Lighting.ts`: depth darkness with stepped light falloff around the rig; effects are layered above it so they read as light sources. Bloom (`pixi-filters` AdvancedBloom) on medium/high quality.
+- `rendering/Backdrop.ts`: tiled dithered sky, twinkling stars, banded ringed gas giant, two parallax ridges, natural cave back-wall with props (dormant crystals, fossils, pipes). One texel per cell.
+- `rendering/sprites.ts`: hand-drawn character-map sprites (rig with thruster/eye animation, emitter) at 4 art pixels per cell.
+- UI: Pixelify Sans (OFL-1.1, bundled via @fontsource, no CDN), notched pixel frames.
+- `npm run build && node scripts/shots.mjs` renders review screenshots to `test-results/shots/`.
