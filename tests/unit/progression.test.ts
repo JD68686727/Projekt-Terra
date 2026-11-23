@@ -3,7 +3,7 @@ import { Progression } from '../../src/progression/Progression';
 import { UPGRADES, upgradeCost } from '../../src/progression/upgrades';
 import { PulseCannon } from '../../src/weapons/PulseCannon';
 import { World } from '../../src/world/World';
-import { Mat } from '../../src/world/materials';
+import { MATERIALS, Mat } from '../../src/world/materials';
 
 describe('upgrades', () => {
   it('costs grow monotonically and stay finite at max level', () => {
@@ -94,11 +94,11 @@ describe('PulseCannon', () => {
 
   it('hits each cell once per wave (annulus damage)', () => {
     const w = new World(64, 64, 1);
-    w.setMat(34, 32, Mat.TitaniumMatrix); // 220 hp
+    w.setMat(34, 32, Mat.TitaniumMatrix);
     const pc = new PulseCannon({ damage: 50, radius: 8, cooldown: 0, range: 50 });
     pc.fire(w, 32.5, 32.5, 32.5, 32.5);
     for (let i = 0; i < 120; i++) pc.update(w, 1 / 60);
-    const dealt = 220 - w.getHp(34, 32);
+    const dealt = MATERIALS[Mat.TitaniumMatrix].durability - w.getHp(34, 32);
     expect(dealt).toBeGreaterThan(30);
     expect(dealt).toBeLessThanOrEqual(50);
   });

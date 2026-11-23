@@ -1,12 +1,14 @@
-# Tasks — next (M4: playable MVP)
+# Tasks — next (M5: full game)
 
-1. World 1024×1024 as default; move generation to a Web Worker (transfer chunk buffers) with loading progress.
-2. Save system (`src/storage/`): IndexedDB, versioned schema {version, seed, size, progression, emitters, modified chunks (mat+hp, compressed RLE)}, autosave every 30 s + on pause/hide, safe transactions, recovery from invalid saves, reset with confirmation, explicit error UI. Storage interface so a cloud backend can be added.
-3. First hidden resonance core: generated structure of Core Material + Titanium shell deep in the world; discovery hint (scanner ping), destruction → victory screen (stats, continue playing).
-4. Main menu: Continue / New game / Settings (volume, quality: particle count, DPR cap) / Reset.
-5. Progress indicator toward the core (depth + scanner distance).
-6. Tests: save round-trip, corrupted save recovery, reload keeps progress (e2e), victory flow.
+1. Drill Missile: penetrating projectile, narrow tunnel, depth/speed/power/splitting upgrades.
+2. Nano Swarm: N deterministic miner particles inside a region, cheap greedy neighbour search, bounded per tick.
+3. Fracture Charge: placed charge, triggers large resonance propagation through crystals AND adjacent rock (branching, bounded queue).
+4. Remaining upgrade families for the new weapons; weapon bar 3/4/5.
+5. Three resonance cores (CORE_COUNT = 3), deeper world (e.g. 1024×2048), ending after the third core + replay (new seed, keep a prestige bonus).
+6. Secrets: hidden caches (crystal vaults), occasional structures.
+7. Pacing pass with the time-to-victory probe for 3 cores (target bot ~30-45 min).
 
 Known follow-ups
 - Touch: on-screen movement controls still minimal (fire + drift).
-- Firefox/WebKit not yet tested.
+- Firefox/WebKit not yet tested (not installable in the sandbox).
+- Real-GPU FPS not yet measured.

@@ -32,3 +32,7 @@ FPS in that environment: ~8 (software rasterisation); real-GPU FPS not yet measu
 - Vitest: 41/41 passed (new: reactions bounds/termination/depth, ore chains, automation targeting + emitter, pacing incl. reactions + RF).
 - Playwright (Chromium 153 headless): 8/8 passed (new: resonance chain → RF in HUD; auto-targeting + emitter mine without input).
 - Bench: 256² sim 0.68 ms avg / 1.9 p95; 1024² 0.54 / 1.8 ms.
+
+## Latest results (M4, 2026-11-23)
+- Vitest: 79/79 passed (new: save format/IndexedDB/backup recovery (fake-indexeddb), time-to-victory probe on 1024²).
+- Playwright (Chromium 153 headless): 12/12 passed (new: reload + Continue restores identical state, corrupted save reported without crash, core destruction → victory screen, reset with confirmation).

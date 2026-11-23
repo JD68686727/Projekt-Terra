@@ -1,5 +1,15 @@
 # Progress
 
+## 2026-11-23 — M4 complete (playable MVP)
+- World 1024² by default, generated in a Web Worker (`src/workers/worldgen.worker.ts`, main-thread fallback), loading bar.
+- Generation is a pure function (`generateMaterials`) → saves store only modified chunks.
+- Resonance core: Core Material sphere (20 000 hp/cell) in a Titanium shell (2 500 hp) with crystal halo, placed deterministically deep underground. HUD scanner (direction + distance) and core progress bar. Victory screen with stats, continue playing afterwards.
+- Saves (`src/storage/`): IndexedDB, versioned format, RLE chunk encoding + sparse hp overrides, main+backup rotated in one transaction, strict validation, recovery from backup, memory fallback when storage is blocked, explicit error toasts. Autosave every 30 s, on pause, tab hide, pagehide, after start; manual save; reset with in-page confirmation.
+- Menus: Continue / New game (confirm when overwriting) / Settings (volume, graphics quality: particles + DPR cap, persisted in localStorage with guards); pause menu with save, settings, reset.
+- Balance: late-game cost curves steepened after a time-to-victory probe showed the core falling in 3.4 min. Now: bot victory ~9.7 min; auto-targeting ~1:40, emitter ~2:50, pulse ~3:45.
+- Delegation: save layer by sonnet-engineer (36 tests); lead review fixed backup rotation (corrupted main could have overwritten the last good backup) + regression test.
+- Tests: 79 unit, 12 e2e (Chromium).
+
 ## 2026-11-23 — M3 complete
 - Reactions (`src/world/Reactions.ts`): resonance spreads through 4-connected crystal cells, one BFS layer per tick (visible wave), depth-limited, ≤400 cells/tick, queue cap 32k, per-cell charged flags (no duplicates/loops). Unstable ore detonates on destruction (deterministic chance), blasts queued (≤24/tick, cap 512), chains through ore without recursion.
 - Resonance Fragments (RF): 0.25 RF per resonated crystal cell; RF-priced upgrades.

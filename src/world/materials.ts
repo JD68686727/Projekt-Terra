@@ -30,8 +30,8 @@ export const MATERIALS: readonly MaterialDef[] = [
   { id: Mat.DenseRock, name: 'Dense Rock', durability: 60, value: 3, color: 0x38343f, variation: 0.1, emissive: false },
   { id: Mat.ResonanceCrystal, name: 'Resonance Crystal', durability: 40, value: 12, color: 0x29d8f0, variation: 0.25, emissive: true },
   { id: Mat.UnstableOre, name: 'Unstable Ore', durability: 30, value: 8, color: 0xf07a22, variation: 0.22, emissive: true },
-  { id: Mat.TitaniumMatrix, name: 'Titanium Matrix', durability: 220, value: 25, color: 0x8c9bb0, variation: 0.06, emissive: false },
-  { id: Mat.CoreMaterial, name: 'Core Material', durability: 600, value: 100, color: 0xd040ff, variation: 0.3, emissive: true },
+  { id: Mat.TitaniumMatrix, name: 'Titanium Matrix', durability: 2500, value: 40, color: 0x8c9bb0, variation: 0.06, emissive: false },
+  { id: Mat.CoreMaterial, name: 'Core Material', durability: 20000, value: 250, color: 0xd040ff, variation: 0.3, emissive: true },
 ];
 
 export const MATERIAL_COUNT = MATERIALS.length;

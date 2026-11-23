@@ -15,5 +15,8 @@ Status: standalone. No Blakeridge SDK specification available yet; none is assum
 `src/platform/BlakeridgeAdapter.ts` defines `init`, `loadingProgress`, `gameplayStart/Stop`, `onPause/onResume`. Only `StandaloneAdapter` exists. A real adapter plugs in via `createPlatformAdapter()`.
 If parent-window messaging is added: fixed message schema, `event.origin` allow-list, never touch the parent DOM/storage.
 
+## Persistence
+Local IndexedDB saves (database `projekt-terra`), no account needed. `SaveStore` interface allows a Blakeridge cloud store later. Falls back to in-memory (with a warning) if storage is blocked, e.g. in some sandboxed iframes.
+
 ## Pending
-Audio after first gesture (M2), IndexedDB saves (M4), cloud saves only once a platform API exists.
+Cloud saves only once a platform API exists.

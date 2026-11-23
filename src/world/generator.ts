@@ -41,7 +41,7 @@ export function coreSites(spec: WorldSpec): CoreSite[] {
   const { width, height, seed, cores } = spec;
   const out: CoreSite[] = [];
   const radius = Math.max(4, Math.round(Math.min(width, height) / 160));
-  const shell = radius + 3;
+  const shell = radius + 5;
   const top = height * SKY_FRACTION;
   for (let i = 0; i < cores; i++) {
     const slotW = width / cores;
