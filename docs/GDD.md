@@ -39,4 +39,9 @@ Manual → auto laser targeting → stationary emitters → multiple systems →
 - Unstable ore may detonate when destroyed (chance/radius upgradeable); blasts chain through ore pockets.
 
 ## Controls
-WASD fly · mouse/space fire · 1/2/Q weapon · T auto-laser · E place emitter · U upgrades · wheel zoom · Esc pause · M mute · F3 perf.
+WASD fly · mouse/space fire · 1–5/Q weapon · T auto-laser · E place emitter · U upgrades · wheel zoom · Esc pause · M mute · F3 perf.
+
+## Full game (M5)
+- 3 resonance cores, shallow → deep, each larger and better shielded. Destroying all three ends the run.
+- After the ending: continue, or start a new world (Echo level +1 → permanent +50 % MP each).
+- Hidden vaults reward exploration (RF + MP once).

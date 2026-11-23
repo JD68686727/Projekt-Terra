@@ -36,3 +36,8 @@ FPS in that environment: ~8 (software rasterisation); real-GPU FPS not yet measu
 ## Latest results (M4, 2026-11-23)
 - Vitest: 79/79 passed (new: save format/IndexedDB/backup recovery (fake-indexeddb), time-to-victory probe on 1024²).
 - Playwright (Chromium 153 headless): 12/12 passed (new: reload + Continue restores identical state, corrupted save reported without crash, core destruction → victory screen, reset with confirmation).
+
+## Latest results (M5, 2026-11-23)
+- Vitest: 98/98 passed (new: drill/nano (12), fracture (4), save v2 migration, 3-core pacing probe).
+- Playwright (Chromium 153 headless): 14/14 passed (new: all three cores → final screen → new world with prestige; drill/nano/fracture destroy terrain; vault reward once).
+- Bench 1024×2048: boot 0.90 s, sim 0.56 ms avg / 2.0 p95, render 0.95 ms, heap 32 MB.

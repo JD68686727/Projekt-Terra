@@ -1,14 +1,8 @@
-# Tasks — next (M5: full game)
+# Tasks — next (M6: release preparation)
 
-1. Drill Missile: penetrating projectile, narrow tunnel, depth/speed/power/splitting upgrades.
-2. Nano Swarm: N deterministic miner particles inside a region, cheap greedy neighbour search, bounded per tick.
-3. Fracture Charge: placed charge, triggers large resonance propagation through crystals AND adjacent rock (branching, bounded queue).
-4. Remaining upgrade families for the new weapons; weapon bar 3/4/5.
-5. Three resonance cores (CORE_COUNT = 3), deeper world (e.g. 1024×2048), ending after the third core + replay (new seed, keep a prestige bonus).
-6. Secrets: hidden caches (crystal vaults), occasional structures.
-7. Pacing pass with the time-to-victory probe for 3 cores (target bot ~30-45 min).
-
-Known follow-ups
-- Touch: on-screen movement controls still minimal (fire + drift).
-- Firefox/WebKit not yet tested (not installable in the sandbox).
-- Real-GPU FPS not yet measured.
+1. Pacing: widen gaps between cores 2 and 3 (e.g. deeper-tier material hardness or steeper late costs); re-run `tests/unit/pacing-core.test.ts`.
+2. Touch controls: on-screen joystick for flying; test on a real phone.
+3. Visual/audio polish: core glow/pulse, scanner ping, ambient drone loop, credits/ending text.
+4. Performance: measure on real GPUs (desktop + mobile), particle/quality presets, texture upload budget per frame.
+5. Cross-browser: run Playwright with Firefox + WebKit locally (`npx playwright install`), fix issues.
+6. Release packaging: final name, icons, `dist/` zip, release notes, BLAKERIDGE_INTEGRATION update.

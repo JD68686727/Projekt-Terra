@@ -1,5 +1,17 @@
 # Progress
 
+## 2026-11-23 — M5 complete (full game loop)
+- Weapons: Drill Missile (tunnels, too-hard stop, splitting children, wide head), Nano Swarm (deterministic leashed miners, ≤8 searches/tick), Fracture Charge (fuse, energy-limited 8-connected crack front with deterministic jitter, crystal conducts, ≤350 cells/tick, safety cap).
+- 13 new upgrades (drill/nano/fracture families), weapon bar 1–5 + Q cycling; locked weapons hidden.
+- World 1024×2048, 3 cores staggered shallow→deep, deeper cores larger with thicker shells. Toast per core; final screen after all cores.
+- Replayability: "Neue Welt" after victory → new seed, Echo/prestige level (+50 % MP per level, persisted).
+- Secrets: hidden vaults (titanium rooms with crystal floors) → +30 RF and MP bonus once each.
+- Save format v2 (prestige, vaults, nano anchor) with v1→v2 migration + tests.
+- Bug found by e2e: taps shorter than a frame never reached the simulation → clicks are now latched in Input (fixes nano/fracture on touch).
+- Pacing probe (bot, all weapons): cores at ~18 / 22.5 / 25.5 min; humans estimated 45–60 min. Later cores still close together → M6 tuning.
+- Delegation: DrillMissile/NanoSwarm + 12 tests by sonnet-engineer, reviewed and integrated unchanged.
+- Tests: 98 unit, 14 e2e (Chromium). Bench 1024×2048: boot 0.9 s, sim 0.56 ms avg, heap 32 MB.
+
 ## 2026-11-23 — M4 complete (playable MVP)
 - World 1024² by default, generated in a Web Worker (`src/workers/worldgen.worker.ts`, main-thread fallback), loading bar.
 - Generation is a pure function (`generateMaterials`) → saves store only modified chunks.
