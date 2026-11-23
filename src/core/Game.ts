@@ -7,6 +7,8 @@ import { MATERIALS, Mat } from '../world/materials';
 import { hash01, fbm } from '../world/rng';
 import { TerrainRenderer } from '../rendering/TerrainRenderer';
 import { Camera } from '../rendering/Camera';
+import { Lighting } from '../rendering/Lighting';
+import { AdvancedBloomFilter } from 'pixi-filters';
 import { Particles } from '../effects/Particles';
 import { CuttingLaser, BeamResult } from '../weapons/CuttingLaser';
 import { PulseCannon } from '../weapons/PulseCannon';
@@ -32,6 +34,8 @@ export interface GameOptions {
   mats?: Uint8Array;
   /** Particle pool size (quality setting). */
   particles?: number;
+  /** Glow post-processing (off on low quality). */
+  bloom?: boolean;
   /** Completed runs (permanent bonus). */
   prestige?: number;
 }
@@ -115,6 +119,7 @@ export class Game {
   private readonly droneGfx = new Graphics();
   private readonly waveGfx = new Graphics();
   private readonly emitterGfx = new Graphics();
+  private readonly lighting = new Lighting();
   private shake = 0;
   private destroyedThisTick = 0;
   private readonly aim = { x: 0, y: 0 };
@@ -189,12 +194,18 @@ export class Game {
 
     this.scene.addChild(this.createBackdrop());
     this.scene.addChild(this.terrain.container);
+    // Everything after the lighting layer reads as emitting light.
+    this.scene.addChild(this.lighting.container);
     this.scene.addChild(this.particles.container);
     this.scene.addChild(this.waveGfx);
     this.scene.addChild(this.emitterGfx);
     this.scene.addChild(this.beamGfx);
     this.scene.addChild(this.droneGfx);
     app.stage.addChild(this.scene);
+    if (opts.bloom) {
+      const bloom = new AdvancedBloomFilter({ threshold: 0.55, bloomScale: 0.9, brightness: 1, blur: 4, quality: 4 });
+      this.scene.filters = [bloom];
+    }
 
     this.world.onDestroy = (x, y, m) => this.onCellDestroyed(x, y, m);
     this.input = new Input(app.canvas);
@@ -312,6 +323,7 @@ export class Game {
     }
     const [x0, y0, x1, y1] = this.camera.bounds();
     this.terrain.cull(x0, y0, x1, y1);
+    this.lighting.update(this.drone.x, this.drone.y, this.drone.y - surfaceY(Math.floor(this.drone.x), this.world), [x0, y0, x1, y1]);
     this.terrain.update();
     this.drawDrone();
     this.drawBeam();
