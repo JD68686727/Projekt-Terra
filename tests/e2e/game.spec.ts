@@ -54,7 +54,7 @@ test('laser destroys terrain and awards MP', async ({ page }) => {
   await page.mouse.down();
   await page.waitForTimeout(2500);
   await page.mouse.up();
-  const stats = await page.evaluate(() => ({ ...window.__game!.stats }));
+  const stats = await page.evaluate(() => ({ destroyed: window.__game!.stats.destroyed, mp: window.__game!.progression.mp }));
   expect(stats.destroyed).toBeGreaterThan(5);
   expect(stats.mp).toBeGreaterThan(0);
   await expect(page.locator('#hud-mp')).not.toHaveText('0 MP');
@@ -99,5 +99,37 @@ test('runs inside an iframe without touching the parent page', async ({ page }) 
   await page.waitForTimeout(200);
   expect(await page.evaluate(() => window.scrollY)).toBe(0);
   await page.screenshot({ path: 'test-results/iframe.png' });
+  expect(errors).toEqual([]);
+});
+
+test('upgrade purchase increases laser power; pulse cannon unlocks and destroys terrain', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page);
+  // Grant MP through the real earning path (no direct stat edits).
+  await page.evaluate(() => window.__game!.progression.earn(2000));
+  await page.keyboard.press('KeyU');
+  await expect(page.locator('#upgrade-panel')).toBeVisible();
+  const dps0 = await page.evaluate(() => window.__game!.laser.stats.dps);
+  await page.locator('#buy-laserDamage').click();
+  expect(await page.evaluate(() => window.__game!.progression.level('laserDamage'))).toBe(1);
+  expect(await page.evaluate(() => window.__game!.laser.stats.dps)).toBeGreaterThan(dps0);
+  // Pulse is locked until bought.
+  expect(await page.evaluate(() => window.__game!.selectWeapon('pulse'))).toBe(false);
+  await page.locator('#buy-pulseUnlock').click();
+  await expect(page.locator('#buy-pulseRadius')).toBeVisible();
+  await page.screenshot({ path: 'test-results/upgrades.png' });
+  await page.keyboard.press('KeyU');
+  await page.keyboard.press('Digit2');
+  expect(await page.evaluate(() => window.__game!.weapon)).toBe('pulse');
+  const before = await page.evaluate(() => window.__game!.stats.destroyed);
+  const box = (await page.locator('canvas').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.85);
+  await page.mouse.down();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: 'test-results/pulse.png' });
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  const after = await page.evaluate(() => window.__game!.stats.destroyed);
+  expect(after - before).toBeGreaterThan(20);
   expect(errors).toEqual([]);
 });

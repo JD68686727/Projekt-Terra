@@ -60,12 +60,14 @@ async function boot(): Promise<void> {
   loading.classList.add('hidden');
 
   const ui = new Ui(root);
+  ui.bind(game);
   let started = false;
   let userPaused = false;
 
   const setPause = (p: boolean) => {
     userPaused = p;
     game.setPaused(p || document.hidden);
+    game.sfx.suspend(p || document.hidden);
     ui.showPause(p);
     if (p) platform.gameplayStop();
     else platform.gameplayStart();
@@ -73,6 +75,7 @@ async function boot(): Promise<void> {
 
   ui.onPlay(() => {
     started = true;
+    game.sfx.unlock();
     platform.gameplayStart();
     app.canvas.focus({ preventScroll: true });
   });
@@ -81,6 +84,8 @@ async function boot(): Promise<void> {
   window.addEventListener('keydown', (e) => {
     if (!started) return;
     if (e.code === 'Escape' || e.code === 'KeyP') setPause(!userPaused);
+    if (e.code === 'KeyU') ui.toggleUpgrades();
+    if (e.code === 'KeyM') ui.toggleMute();
     if (e.code === 'F3') {
       ui.togglePerf();
       e.preventDefault();
@@ -88,6 +93,7 @@ async function boot(): Promise<void> {
   });
   document.addEventListener('visibilitychange', () => {
     game.setPaused(userPaused || document.hidden || !started);
+    game.sfx.suspend(userPaused || document.hidden);
   });
   platform.onPause(() => setPause(true));
   platform.onResume(() => setPause(false));

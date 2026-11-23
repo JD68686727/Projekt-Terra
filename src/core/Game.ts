@@ -7,6 +7,9 @@ import { TerrainRenderer } from '../rendering/TerrainRenderer';
 import { Camera } from '../rendering/Camera';
 import { Particles } from '../effects/Particles';
 import { CuttingLaser, BeamResult } from '../weapons/CuttingLaser';
+import { PulseCannon } from '../weapons/PulseCannon';
+import { Progression } from '../progression/Progression';
+import { Sfx } from '../audio/Sfx';
 import { FixedLoop } from './FixedLoop';
 import { Input } from './Input';
 import { Drone } from './Drone';
@@ -33,8 +36,9 @@ export interface PerfStats {
 export interface GameStats {
   destroyed: number;
   destroyedByMat: number[];
-  mp: number;
 }
+
+export type WeaponId = 'laser' | 'pulse';
 
 const SKY = 0.2;
 
@@ -43,10 +47,14 @@ export class Game {
   readonly world: World;
   readonly camera = new Camera();
   readonly input: Input;
-  readonly laser = new CuttingLaser();
+  readonly progression = new Progression();
+  readonly laser: CuttingLaser;
+  readonly pulse: PulseCannon;
+  readonly sfx = new Sfx();
   readonly drone: Drone;
+  weapon: WeaponId = 'laser';
   readonly perf: PerfStats = { fps: 0, frameMs: 0, simMs: 0, renderMs: 0, terrainMs: 0, uploads: 0, texels: 0, particles: 0, visibleChunks: 0, steps: 0 };
-  readonly stats: GameStats = { destroyed: 0, destroyedByMat: new Array(MATERIALS.length).fill(0), mp: 0 };
+  readonly stats: GameStats = { destroyed: 0, destroyedByMat: new Array(MATERIALS.length).fill(0) };
   paused = false;
 
   private readonly loop = new FixedLoop(60, 5);
@@ -55,6 +63,9 @@ export class Game {
   private readonly particles: Particles;
   private readonly beamGfx = new Graphics();
   private readonly droneGfx = new Graphics();
+  private readonly waveGfx = new Graphics();
+  private shake = 0;
+  private destroyedThisTick = 0;
   private readonly aim = { x: 0, y: 0 };
   private readonly beam: BeamResult = { endX: 0, endY: 0, hit: false };
   private firing = false;
@@ -65,12 +76,15 @@ export class Game {
 
   constructor(app: Application, opts: GameOptions) {
     this.app = app;
+    this.laser = new CuttingLaser(this.progression.laserStats());
+    this.pulse = new PulseCannon(this.progression.pulseStats());
     this.world = new World(opts.worldWidth, opts.worldHeight, opts.seed);
     generateWorld(this.world, { skyFraction: SKY });
 
     const cx = Math.floor(opts.worldWidth / 2);
     const startY = surfaceY(cx, this.world, SKY) - 12;
     this.drone = new Drone(cx + 0.5, startY);
+    this.progression.onChange = () => this.applyUpgrades();
     this.camera.x = this.camera.targetX = this.drone.x;
     this.camera.y = this.camera.targetY = this.drone.y + 20;
 
@@ -80,6 +94,7 @@ export class Game {
     this.scene.addChild(this.createBackdrop());
     this.scene.addChild(this.terrain.container);
     this.scene.addChild(this.particles.container);
+    this.scene.addChild(this.waveGfx);
     this.scene.addChild(this.beamGfx);
     this.scene.addChild(this.droneGfx);
     app.stage.addChild(this.scene);
@@ -107,6 +122,22 @@ export class Game {
     this.paused = p;
     this.loop.reset();
     this.input.fire = false;
+    this.firing = false;
+    this.sfx.laser(false, 0, false);
+  }
+
+  /** Re-derives weapon/drone stats from upgrade levels. */
+  applyUpgrades(): void {
+    this.laser.stats = this.progression.laserStats();
+    this.pulse.stats = this.progression.pulseStats();
+    this.drone.speed = this.progression.droneSpeed();
+    if (!this.progression.pulseUnlocked() && this.weapon === 'pulse') this.weapon = 'laser';
+  }
+
+  selectWeapon(w: WeaponId): boolean {
+    if (w === 'pulse' && !this.progression.pulseUnlocked()) return false;
+    this.weapon = w;
+    return true;
   }
 
   private frame(t: number): void {
@@ -126,11 +157,19 @@ export class Game {
     this.camera.targetY = this.drone.y;
     this.camera.update(dt, this.world.width, this.world.height);
     this.camera.apply(this.scene);
+    if (this.shake > 0.01) {
+      const a = this.shake * this.camera.zoom * 0.6;
+      this.scene.x += Math.round((Math.random() - 0.5) * a);
+      this.scene.y += Math.round((Math.random() - 0.5) * a);
+      this.shake *= Math.exp(-dt * 9);
+    }
     const [x0, y0, x1, y1] = this.camera.bounds();
     this.terrain.cull(x0, y0, x1, y1);
     this.terrain.update();
     this.drawDrone();
     this.drawBeam();
+    this.drawWaves();
+    this.sfx.laser(this.firing && this.weapon === 'laser' && !this.paused, this.progression.level('laserDamage'), this.beam.hit);
 
     const r0 = performance.now();
     this.app.render();
@@ -155,6 +194,9 @@ export class Game {
     if (w) this.camera.zoomBy(Math.pow(1.0015, -w));
     if (this.input.wasPressed('Equal') || this.input.wasPressed('NumpadAdd')) this.camera.zoomBy(1.25);
     if (this.input.wasPressed('Minus') || this.input.wasPressed('NumpadSubtract')) this.camera.zoomBy(0.8);
+    if (this.input.wasPressed('Digit1')) this.selectWeapon('laser');
+    if (this.input.wasPressed('Digit2')) this.selectWeapon('pulse');
+    if (this.input.wasPressed('KeyQ')) this.selectWeapon(this.weapon === 'laser' ? 'pulse' : 'laser');
     this.camera.screenToWorld(this.input.pointerX, this.input.pointerY, this.aim);
   }
 
@@ -174,8 +216,21 @@ export class Game {
     }
     this.drone.update(this.world, ax, ay, h);
 
+    this.destroyedThisTick = 0;
     this.firing = this.input.fire || this.input.keys.has('Space');
-    if (this.firing) {
+    if (this.firing && this.weapon === 'pulse') {
+      const wave = this.pulse.fire(this.world, this.drone.x, this.drone.y, this.aim.x, this.aim.y);
+      if (wave) {
+        this.sfx.pulse();
+        this.shake = Math.min(3, this.shake + 0.8 + wave.maxR * 0.05);
+        for (let i = 0; i < 24; i++) {
+          const a = (i / 24) * Math.PI * 2;
+          this.particles.emit(wave.x, wave.y, Math.cos(a) * 55, Math.sin(a) * 55, i % 2 ? 0x29d8f0 : 0xffffff, 0.3, 0.6, 0, true);
+        }
+      }
+    }
+    this.pulse.update(this.world, h);
+    if (this.firing && this.weapon === 'laser') {
       this.laser.fire(this.world, this.drone.x, this.drone.y, this.aim.x, this.aim.y, h, this.beam);
       if (this.beam.hit && hash01(Math.floor(this.time * 60), 7, 1) < 0.6) {
         const c = Math.random() < 0.5 ? 0xffc060 : 0xff7a1a;
@@ -183,14 +238,18 @@ export class Game {
       }
     }
     this.particles.update(h);
+    if (this.destroyedThisTick > 12) this.shake = Math.min(3, this.shake + this.destroyedThisTick * 0.004);
   }
 
   private onCellDestroyed(x: number, y: number, m: Mat): void {
     const def = MATERIALS[m];
     this.stats.destroyed++;
     this.stats.destroyedByMat[m]++;
-    this.stats.mp += def.value;
-    const n = def.emissive ? 3 : 2;
+    this.progression.earn(def.value);
+    this.destroyedThisTick++;
+    this.sfx.cellBreak(def.value >= 8);
+    // Fewer particles per cell during mass destruction keeps the pool readable.
+    const n = this.destroyedThisTick > 40 ? (Math.random() < 0.3 ? 1 : 0) : def.emissive ? 3 : 2;
     for (let i = 0; i < n; i++) {
       this.particles.emit(
         x + Math.random(),
@@ -206,10 +265,22 @@ export class Game {
     }
   }
 
+  private drawWaves(): void {
+    const g = this.waveGfx;
+    g.clear();
+    for (const w of this.pulse.waves) {
+      const life = Math.min(1, w.r / w.maxR);
+      const fade = w.r >= w.maxR ? Math.max(0, 1 - (w.age - w.maxR / 45) / 0.25) : 1;
+      g.circle(w.x, w.y, Math.max(0.5, w.r)).stroke({ width: 1.2 * (1 - life * 0.5), color: 0x29d8f0, alpha: 0.85 * fade });
+      g.circle(w.x, w.y, Math.max(0.3, w.r * 0.85)).stroke({ width: 0.5, color: 0xffffff, alpha: 0.5 * fade });
+      if (life < 0.35) g.circle(w.x, w.y, 2 + w.r * 0.4).fill({ color: 0xbff6ff, alpha: 0.5 * (1 - life / 0.35) });
+    }
+  }
+
   private drawBeam(): void {
     const g = this.beamGfx;
     g.clear();
-    if (!this.firing || this.paused) return;
+    if (!this.firing || this.paused || this.weapon !== 'laser') return;
     const ox = this.drone.x;
     const oy = this.drone.y;
     const ex = this.beam.endX;
