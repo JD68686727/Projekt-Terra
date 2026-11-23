@@ -154,3 +154,58 @@ export function scale(rgb: number, k: number): number {
   const b = Math.min(255, (rgb & 0xff) * k);
   return (r << 16) | (g << 8) | b;
 }
+
+// --- Illustrated boulder fill for Stone / Dense Rock (matches the backdrop rock kit) ---
+
+/** Writes the 9 jittered Voronoi sites (sub-pixel coords) around a cell into `out` (18 floats). */
+export function boulderSites(gx: number, gy: number, D: number, sizeCells: number, seed: number, out: Float32Array): void {
+  const G = sizeCells * D;
+  const cx = Math.floor((gx * D) / G);
+  const cy = Math.floor((gy * D) / G);
+  let k = 0;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const X = cx + i;
+      const Y = cy + j;
+      out[k++] = (X + 0.2 + hash01(X, Y, seed) * 0.6) * G;
+      out[k++] = (Y + 0.2 + hash01(Y, X, seed ^ 0x5f) * 0.6) * G;
+    }
+  }
+}
+
+/**
+ * Palette step for a boulder-field sub-pixel: each Voronoi cell is a stone
+ * lit like a pillow from the upper left (flat middle, rounded rim), with
+ * dark crevices between stones and a lit lip on their upper-left rims.
+ * Clustered tones only — no dithering, no single-pixel noise.
+ */
+export function boulderStep(sx: number, sy: number, sites: Float32Array, seed: number): number {
+  let d1 = 1e9, d2 = 1e9, bx = 0, by = 0;
+  for (let k = 0; k < 18; k += 2) {
+    const dx = sx - sites[k];
+    const dy = (sy - sites[k + 1]) * 1.35; // slightly flattened stones
+    const d = dx * dx + dy * dy;
+    if (d < d1) { d2 = d1; d1 = d; bx = sites[k]; by = sites[k + 1]; } else if (d < d2) d2 = d;
+  }
+  const r1 = Math.sqrt(d1);
+  const edge = Math.sqrt(d2) - r1;
+  if (edge < 1.6) return 0; // crevice between stones
+  const t = r1 / (r1 + edge * 0.5); // 0 centre → 1 rim
+  const len = r1 || 1;
+  const nx = (sx - bx) / len;
+  const ny = (sy - by) / len;
+  const k = t * t * t;
+  const pz = Math.sqrt(Math.max(0, 1 - k * k));
+  const l = nx * k * -0.55 + ny * k * -0.72 + pz * 0.42 + (hash01(Math.floor(bx), Math.floor(by), seed) - 0.5) * 0.12;
+  let s = l > 0.5 ? 3 : l > 0.32 ? 2 : l > 0.1 ? 1 : 0;
+  if (edge < 3.2 && nx * -0.55 + ny * -0.72 > 0.3) s = 4; // lit upper-left lip
+  return Math.max(1, s);
+}
+
+/** Grass tufts (clustered, not per-pixel): height in sub-pixels for column i of a surface cell. */
+export function tuftHeight(gx: number, gy: number, i: number, D: number, seed: number): number {
+  if (hash01(gx, gy, seed ^ 0x7f) < 0.45) return 0; // bare cell
+  const shape = [1, 3, 2, 4, 2, 3, 1, 2];
+  const off = Math.floor(hash01(gx, gy, seed ^ 0x80) * 8);
+  return Math.min(D + 1, shape[(i + off) % 8] + (hash01(gx, gy, seed ^ 0x81) > 0.7 ? 1 : 0));
+}

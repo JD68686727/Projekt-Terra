@@ -52,3 +52,11 @@ src/
 - `TerrainRenderer`: D×D art pixels per cell, pooled LRU chunk views, air below the surface painted as back-wall inside the chunk texture.
 - `world/FogMap.ts` (state, RLE, persisted) + `rendering/FogRenderer.ts` (one linear-filtered texture, partial row uploads).
 - Layer order: backdrop → terrain → fog → lighting → particles/FX → sprites.
+
+## Environment art direction (v4)
+- One visual language: light from the upper left, 4–6 tone clustered palettes (violet/lavender/indigo stone, teal + violet flora, luminous accents), no arbitrary dithering or single-pixel noise.
+- `rendering/art/rock.ts`: chiselled boulders (pillow-lit blob cut by 3–4 flat faces, lit/dark rims, deliberate cracks); `formation()` shape grammar (main mass → secondary outcrop → rubble, ledges for plants); `softMountains()` for distant low-contrast silhouettes.
+- `rendering/art/foliage.ts`: hand-drawn leaf-clump stamps assembled into layered canopies (lit rim clumps, darker interior/underside, selective outline); `tree()` recursive branching trunk + crown, `shrub()`, `glowPlant()`.
+- `rendering/Backdrop.ts`: sky/planet/moon/stars → far mountains (haze 0.62) → secondary formations (haze 0.5, shrubs) → midground formations with trees (haze 0.14) → playable terrain.
+- Terrain: Stone/Dense Rock use the same boulder language (`boulderSites/boulderStep`, Voronoi stones with crevices and lit lips); calm edges (rounded corners only), clustered grass tufts.
+- Progressive terrain painting: newly visible chunks are painted in 8-row slices under a 3 ms/frame budget and shown when complete.

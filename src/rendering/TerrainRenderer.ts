@@ -3,11 +3,13 @@ import { CHUNK_SIZE, Chunk, World } from '../world/World';
 import { MATERIALS, Mat } from '../world/materials';
 import { hash01 } from '../world/rng';
 import { surfaceAt } from '../world/generator';
-import { MOSS, OUTLINE, PALETTES, backColor, bladeColor, bladeHeight, fungusPixel, scale, subStep } from './materialArt';
+import { MOSS, OUTLINE, PALETTES, backColor, bladeColor, boulderSites, boulderStep, fungusPixel, scale, subStep, tuftHeight } from './materialArt';
 
 interface ChunkView {
   chunkIndex: number; // -1 = free
   painted: boolean;
+  /** Rows (0..64) already painted during progressive painting. */
+  progress: number;
   lastUsed: number;
   pixels: Uint8Array;
   source: BufferImageSource;
@@ -50,6 +52,8 @@ export class TerrainRenderer {
   maxUploadsPerFrame = 48;
   /** Max fully painted (newly visible) chunks per frame after the first frame. */
   maxFullPaintsPerFrame = 3;
+  /** Time budget (ms) for full paints per frame; at least one chunk is always painted. */
+  fullPaintBudgetMs = 3;
 
   private readonly world: World;
   private readonly views: ChunkView[] = [];
@@ -64,6 +68,7 @@ export class TerrainRenderer {
   private centreX = 0;
   private centreY = 0;
   private firstPaintDone = false;
+  private readonly sites = new Float32Array(18);
 
   constructor(world: World, detail = 4) {
     this.world = world;
@@ -114,6 +119,8 @@ export class TerrainRenderer {
     for (const c of dirty) {
       const v = this.byChunk[c.cy * w.chunksX + c.cx];
       if (!v || !v.painted) {
+        // In-progress chunk: rows already painted above the change must be redone.
+        if (v && c.dirtyY0 < v.progress) v.progress = Math.max(0, c.dirtyY0);
         w.clearDirty(c);
         continue;
       }
@@ -148,12 +155,21 @@ export class TerrainRenderer {
       const d = (c: Chunk) => (c.cx * CHUNK_SIZE + 32 - this.centreX) ** 2 + (c.cy * CHUNK_SIZE + 32 - this.centreY) ** 2;
       need.sort((a, b) => d(a) - d(b));
       const budget = this.firstPaintDone ? this.maxFullPaintsPerFrame : need.length;
-      for (let k = 0; k < Math.min(budget, need.length); k++) {
+      // Progressive painting: chunks are painted in 8-row slices within a
+      // per-frame time budget and shown only once complete (no half chunks).
+      const tStart = performance.now();
+      const unlimited = !this.firstPaintDone;
+      outer: for (let k = 0; k < Math.min(unlimited ? need.length : budget, need.length); k++) {
         const c = need[k];
         const idx = c.cy * w.chunksX + c.cx;
         const v = this.byChunk[idx] ?? this.acquire(idx);
         if (!v) break;
-        this.paintRows(v, c, 0, CHUNK_SIZE - 1);
+        while (v.progress < CHUNK_SIZE) {
+          if (!unlimited && performance.now() - tStart > this.fullPaintBudgetMs) break outer;
+          const y1 = Math.min(CHUNK_SIZE - 1, v.progress + 7);
+          this.paintRows(v, c, v.progress, y1);
+          v.progress = y1 + 1;
+        }
         v.source.update();
         v.painted = true;
         v.sprite.visible = true;
@@ -179,7 +195,7 @@ export class TerrainRenderer {
       sprite.scale.set(1 / this.detail);
       sprite.roundPixels = true;
       this.container.addChild(sprite);
-      v = { chunkIndex: -1, painted: false, lastUsed: 0, pixels, source, sprite };
+      v = { chunkIndex: -1, painted: false, progress: 0, lastUsed: 0, pixels, source, sprite };
       this.views.push(v);
     } else {
       for (const cand of this.views) {
@@ -192,6 +208,7 @@ export class TerrainRenderer {
     const c = this.world.chunks[chunkIndex];
     v.chunkIndex = chunkIndex;
     v.painted = false;
+    v.progress = 0;
     v.lastUsed = this.frameNo;
     v.sprite.x = c.cx * CHUNK_SIZE;
     v.sprite.y = c.cy * CHUNK_SIZE;
@@ -248,7 +265,7 @@ export class TerrainRenderer {
           const sx = gx * D + si;
           const fromFloor = D - 1 - sj;
           if (grass) {
-            const h = bladeHeight(sx, gy, D, seed);
+            const h = tuftHeight(gx, gy, si, D, seed);
             if (fromFloor < h) {
               put(si, sj, bladeColor(sx, fromFloor, h));
               continue;
@@ -277,12 +294,14 @@ export class TerrainRenderer {
     const surfaceCell = gy - surf < 4;
     const mossy = !emissive && surfaceCell && m !== Mat.TitaniumMatrix;
     // Organic edges: exposed sides are eroded by 0..D/2 art pixels (per edge, deterministic).
+    // Calm edges: no random erosion; only exposed corners are rounded (clean silhouettes).
     const crisp = m === Mat.TitaniumMatrix || m === Mat.CoreMaterial;
-    const ero = (salt: number) => (crisp ? 0 : Math.floor(hash01(gx, gy, seed ^ salt) * (D * 0.5)));
-    const eT = up ? ero(0xe1) : 0;
-    const eB = down ? ero(0xe2) : 0;
-    const eL = left ? ero(0xe3) : 0;
-    const eR = right ? ero(0xe4) : 0;
+    const eT = 0;
+    const eB = 0;
+    const eL = 0;
+    const eR = 0;
+    const boulders = m === Mat.Stone || m === Mat.DenseRock;
+    if (boulders) boulderSites(gx, gy, D, m === Mat.Stone ? 7 : 11, seed ^ (m === Mat.Stone ? 0xb01 : 0xb02), this.sites);
     // Fake AO: no air within 2 cells → darker interior.
     const deep =
       !up && !down && !left && !right &&
@@ -300,10 +319,10 @@ export class TerrainRenderer {
         // Rounded corners where two exposed edges meet.
         const corner =
           !crisp &&
-          ((up && left && si + sj < Math.max(eT, eL) + 1) ||
-            (up && right && D - 1 - si + sj < Math.max(eT, eR) + 1) ||
-            (down && left && si + D - 1 - sj < Math.max(eB, eL) + 1) ||
-            (down && right && 2 * (D - 1) - si - sj < Math.max(eB, eR) + 1));
+          ((up && left && si + sj < 2) ||
+            (up && right && D - 1 - si + sj < 2) ||
+            (down && left && si + D - 1 - sj < 2) ||
+            (down && right && 2 * (D - 1) - si - sj < 2));
         if (dT < 0 || dB < 0 || dL < 0 || dR < 0 || corner) {
           air(si, sj);
           continue;
@@ -318,7 +337,7 @@ export class TerrainRenderer {
         } else if (dB === 0 || dL === 0 || dR === 0) {
           rgb = emissive ? pal[1] : OUTLINE; // dark outline on shadow sides
         } else {
-          let step = subStep(m, sx, sy, gx, gy, D, seed);
+          let step = boulders ? boulderStep(sx, sy, this.sites, seed) : subStep(m, sx, sy, gx, gy, D, seed);
           if (dT === 0) step = Math.min(4, step + 2); // sunlit rim
           else if (dT === 1) step = Math.min(4, step + 1);
           else if (dB === 1) step = Math.max(0, step - 1);

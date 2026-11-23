@@ -1,5 +1,10 @@
 # Progress
 
+## 2026-11-23 — Environment art direction overhaul
+- Replaced procedural/geometric backdrop (polygon mountains, round bushes, block cliffs) with an illustrated rock + foliage kit and clear depth layers; terrain stone matches the backdrop rock language.
+- Perf: progressive sliced chunk painting → terrain p95 4.5 ms (was 24.5 ms after the richer stone art).
+- Tests: 104 unit, 15 e2e green. Known limits: procedural (not hand-painted); ores unchanged (next); Firefox/WebKit/real GPUs untested.
+
 ## 2026-11-23 — HD art pass + fog of war
 - Terrain drawn at 4×4 art pixels per cell (2×2 on low quality); chunk textures pooled (max 72, LRU) so GPU memory is independent of world size; newly visible chunks painted closest-first (3/frame), dirty rows partially re-uploaded.
 - Organic eroded edges with outlines and rounded corners, mossy lips, grass blades, ceiling drips, glowing cave fungi, HD cave back-wall with props.
