@@ -248,11 +248,13 @@ export class Game {
     const sky = new Graphics();
     const w = this.world.width;
     const h = this.world.height;
-    const bands = 12;
+    // Sky extends well below the lowest possible surface dip.
+    const skyBottom = h * (SKY + 0.15);
+    const bands = 16;
     for (let i = 0; i < bands; i++) {
       const t = i / bands;
-      const col = lerpColor(0x070a14, 0x1a1030, t);
-      sky.rect(-w, -200 + (t * (h * SKY + 200)), w * 3, (h * SKY + 200) / bands + 1).fill(col);
+      const col = lerpColor(0x070a14, 0x24123a, t);
+      sky.rect(-w, -200 + t * (skyBottom + 200), w * 3, (skyBottom + 200) / bands + 1).fill(col);
     }
     c.addChild(sky);
     // Stars
