@@ -1,6 +1,7 @@
 import { BufferImageSource, Container, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { SKY_FRACTION } from '../world/generator';
 import { hash01, valueNoise } from '../world/rng';
+import { Canvas, canopy, canvas, conifer, glowDots, haze, hazeBand, mountains, trunk } from './backdrop/painters';
 
 /**
  * Sky & horizon, drawn at the same density as the HD terrain (ART art
@@ -34,26 +35,13 @@ function mix(a: number, b: number, t: number): number {
   return (Math.round(r) << 16) | (Math.round(g) << 8) | Math.round(bl);
 }
 
-/** Horizontally periodic 1D noise in [0,1] (sum of integer harmonics). */
-function periodic(x: number, period: number, seed: number, octaves = 6): number {
-  let v = 0;
-  let norm = 0;
-  for (let k = 1; k <= octaves; k++) {
-    const f = Math.round(k * k * 0.6 + k);
-    const amp = 1 / (k * 1.3);
-    const phase = hash01(k, 3, seed) * Math.PI * 2;
-    v += Math.sin((x / period) * Math.PI * 2 * f + phase) * amp;
-    norm += amp;
-  }
-  return 0.5 + 0.5 * (v / norm);
-}
-
 export class Backdrop {
   readonly container = new Container();
   private readonly far = new Container(); // parallax 0.08
   private readonly mid = new Container(); // 0.3
   private readonly near = new Container(); // 0.55
-  private readonly front = new Container(); // 0.75
+  private readonly front = new Container(); // 0.7
+  private readonly fore = new Container(); // 0.85
   private readonly stars: Sprite[] = [];
   private time = 0;
   private readonly horizon: number;
@@ -62,13 +50,14 @@ export class Backdrop {
     this.horizon = height * SKY_FRACTION;
     const top = -160;
     const skyH = Math.ceil(this.horizon - top + 80);
-    this.container.addChild(this.sky(top, skyH), this.far, this.mid, this.near, this.front);
+    this.container.addChild(this.sky(top, skyH), this.far, this.mid, this.near, this.front, this.fore);
     this.far.addChild(this.nebula(top));
     this.buildStars();
     this.far.addChild(this.planet(), this.moon());
-    this.mid.addChild(this.ridge(0x2a1a46, 0x4a2f6e, 0x3a2758, 95, 0x9a1, false));
-    this.near.addChild(this.ridge(0x1a1130, 0x3c2860, 0x241843, 70, 0x9b2, false));
-    this.front.addChild(this.ridge(0x0f0a1d, 0x2e2052, 0x160f29, 45, 0x9c3, true));
+    this.mid.addChild(this.layerMountains());
+    this.near.addChild(this.layerConifers());
+    this.front.addChild(this.layerCanopyForest());
+    this.fore.addChild(this.layerNearGrove());
   }
 
   private sky(top: number, h: number): TilingSprite {
@@ -220,52 +209,86 @@ export class Backdrop {
     return s;
   }
 
-  /** Tileable mountain ridge with lit crest, sun-facing slopes, strata and optional plant silhouettes. */
-  private ridge(body: number, rim: number, strata: number, rise: number, salt: number, plants: boolean): TilingSprite {
-    const W = RIDGE_PERIOD * ART;
-    const H = (rise + 30) * ART;
-    const px = new Uint8Array(W * H * 4);
-    const heights = new Int32Array(W);
-    for (let x = 0; x < W; x++) {
-      const n = periodic(x / ART, RIDGE_PERIOD, this.seed ^ salt, 7);
-      const spikes = Math.pow(periodic(x / ART, RIDGE_PERIOD / 4, this.seed ^ (salt + 1), 3), 6) * 0.35;
-      heights[x] = Math.floor(H - 12 * ART - (n * 0.85 + spikes) * rise * ART);
-    }
-    for (let x = 0; x < W; x++) {
-      const top = heights[x];
-      const slope = heights[(x + 1) % W] - heights[(x - 1 + W) % W];
-      for (let y = Math.max(0, top); y < H; y++) {
-        const depth = y - top;
-        let col = body;
-        if (depth < 2) col = rim;
-        else if (depth < 5 && slope > 0) col = mix(body, rim, 0.45);
-        else if (valueNoise(x / ART / 14, (y + x * 0.25) / ART / 2.2, this.seed ^ salt) > 0.62 && bayer(x, y) < 0.6) col = strata;
-        set(px, W, x, y, col);
-      }
-    }
-    if (plants) {
-      for (let k = 0; k < 140; k++) {
-        const x = Math.floor(hash01(k, 1, this.seed ^ salt) * W);
-        const h = (3 + Math.floor(hash01(k, 2, this.seed ^ salt) * 10)) * 2;
-        const top = heights[x];
-        const lean = hash01(k, 3, this.seed ^ salt) > 0.5 ? 1 : -1;
-        for (let j = 0; j < h; j++) {
-          const yy = top - j;
-          if (yy >= 0) set(px, W, (x + (j > h * 0.6 ? lean : 0) + W) % W, yy, body);
-        }
-        const bx = (x + lean + W) % W;
-        const by = top - h;
-        const glow = hash01(k, 4, this.seed ^ salt) > 0.6 ? 0x3ff0d0 : 0xd070ff;
-        for (const [ox, oy] of [[0, 0], [1, 0], [0, -1], [1, -1]]) {
-          if (by + oy >= 0) set(px, W, (bx + ox + W) % W, by + oy, glow);
-        }
-      }
-    }
-    const s = new TilingSprite({ texture: tex(W, H, px), width: this.width * 3 * ART, height: H });
+  // --- Layered landscape (ref: hand-made parallax backgrounds) -----------
+  // Palettes are pushed toward the horizon colour with distance
+  // (atmospheric perspective): far layers are lighter and flatter.
+
+  private static readonly HAZE = 0x6a3a72;
+  private static readonly ROCK = [0x120e22, 0x241a3a, 0x3a2a56, 0x584279, 0x8064a0];
+  private static readonly PINE = [0x08161f, 0x0f2a38, 0x184154, 0x2a6470];
+  private static readonly LEAF = [0x05161a, 0x0b2e30, 0x124a46, 0x1b6a5c, 0x2b9474, 0x6ad6a6];
+  private static readonly BARK = [0x120c1a, 0x261a30, 0x3e2c48];
+  private static readonly GLOW_A = [0xb8fff0, 0x3ff0d0];
+  private static readonly GLOW_B = [0xffd6ff, 0xd070ff];
+
+  private layerSprite(c: Canvas, baseOffsetCells: number): TilingSprite {
+    const s = new TilingSprite({ texture: tex(c.w, c.h, c.px), width: this.width * 3 * ART, height: c.h });
     s.scale.set(1 / ART);
     s.x = -this.width;
-    s.y = this.horizon - H / ART + 22;
+    s.y = this.horizon - c.h / ART + baseOffsetCells;
     return s;
+  }
+
+  private layerMountains(): TilingSprite {
+    const c = canvas(RIDGE_PERIOD * ART, 130 * ART);
+    mountains(c, c.h - 6 * ART, 78 * ART, 14, haze(Backdrop.ROCK, Backdrop.HAZE, 0.5), this.seed ^ 0xa1);
+    hazeBand(c, Math.floor(c.h * 0.55), c.h, Backdrop.HAZE, 200);
+    return this.layerSprite(c, 26);
+  }
+
+  private layerConifers(): TilingSprite {
+    const c = canvas(RIDGE_PERIOD * ART, 95 * ART);
+    const pal = haze(Backdrop.PINE, Backdrop.HAZE, 0.42);
+    const n = 70;
+    for (let i = 0; i < n; i++) {
+      const x = Math.floor(hash01(i, 1, this.seed ^ 0xb2) * c.w);
+      const h = Math.floor((28 + hash01(i, 2, this.seed ^ 0xb2) * 50) * ART);
+      conifer(c, x, c.h - 4 * ART, h, pal, this.seed ^ i);
+    }
+    hazeBand(c, Math.floor(c.h * 0.5), c.h, Backdrop.HAZE, 170);
+    return this.layerSprite(c, 24);
+  }
+
+  private layerCanopyForest(): TilingSprite {
+    const c = canvas(RIDGE_PERIOD * ART, 80 * ART);
+    const leaf = haze(Backdrop.LEAF, Backdrop.HAZE, 0.34);
+    const bark = haze(Backdrop.BARK, Backdrop.HAZE, 0.34);
+    const n = 30;
+    for (let i = 0; i < n; i++) {
+      const x = Math.floor(((i + hash01(i, 1, this.seed ^ 0xc3) * 0.8) / n) * c.w);
+      const r = Math.floor((6 + hash01(i, 2, this.seed ^ 0xc3) * 5) * ART);
+      const top = Math.floor(c.h - (24 + hash01(i, 3, this.seed ^ 0xc3) * 22) * ART);
+      trunk(c, x, c.h - 1, top + r, Math.max(3, Math.floor(r / 6)), bark, this.seed ^ i);
+      canopy(c, x, top, r, leaf, (this.seed ^ 0xc3) + i * 131);
+    }
+    glowDots(c, 160, Backdrop.GLOW_A, this.seed ^ 0xc4);
+    hazeBand(c, Math.floor(c.h * 0.62), c.h, Backdrop.HAZE, 150);
+    return this.layerSprite(c, 22);
+  }
+
+  private layerNearGrove(): TilingSprite {
+    const c = canvas(RIDGE_PERIOD * ART, 60 * ART);
+    // Nearest layer is the darkest (silhouette-like), so the playfield stays readable.
+    const leaf = haze(Backdrop.LEAF, 0x0a0816, 0.5);
+    const bark = haze(Backdrop.BARK, 0x0a0816, 0.4);
+    const n = 18;
+    for (let i = 0; i < n; i++) {
+      const x = Math.floor(((i + hash01(i, 1, this.seed ^ 0xd4)) / n) * c.w);
+      const big = hash01(i, 4, this.seed ^ 0xd4) > 0.55;
+      if (big) {
+        const r = Math.floor((6 + hash01(i, 2, this.seed ^ 0xd4) * 4) * ART);
+        const top = Math.floor(c.h - (20 + hash01(i, 3, this.seed ^ 0xd4) * 12) * ART);
+        trunk(c, x, c.h - 1, top + r, Math.max(3, Math.floor(r / 5)), bark, this.seed ^ (i + 99));
+        canopy(c, x, top, r, leaf, (this.seed ^ 0xd4) + i * 197);
+      }
+      // Bushes along the ground line.
+      const br = Math.floor((4 + hash01(i, 5, this.seed ^ 0xd4) * 4) * ART);
+      canopy(c, x + Math.floor(c.w / n / 2), c.h - Math.floor(br * 0.55), br, leaf, (this.seed ^ 0xd5) + i * 61);
+    }
+    glowDots(c, 50, Backdrop.GLOW_A, this.seed ^ 0xd6);
+    glowDots(c, 30, Backdrop.GLOW_B, this.seed ^ 0xd7);
+    hazeBand(c, Math.floor(c.h * 0.8), c.h, 0x2a1838, 120);
+    return this.layerSprite(c, 20);
   }
 
   /** Parallax + star twinkle. camX/camY = camera centre in cells. */
@@ -276,9 +299,10 @@ export class Backdrop {
       c.y = (camY - this.horizon) * (1 - f) * 0.5;
     };
     place(this.far, 0.08);
-    place(this.mid, 0.3);
-    place(this.near, 0.55);
-    place(this.front, 0.75);
+    place(this.mid, 0.2);
+    place(this.near, 0.45);
+    place(this.front, 0.7);
+    place(this.fore, 0.85);
     for (let i = 0; i < this.stars.length; i++) {
       this.stars[i].alpha = 0.3 + 0.7 * (0.5 + 0.5 * Math.sin(this.time * (0.6 + (i % 9) * 0.35) + i * 1.7));
     }
