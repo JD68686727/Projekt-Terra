@@ -1,6 +1,7 @@
 import { GAME_SUBTITLE, GAME_TITLE, GAME_VERSION } from '../config/meta';
 import type { Game, WeaponId } from '../core/Game';
 import { UPGRADES, UpgradeGroup, UpgradeId } from '../progression/upgrades';
+import { QUALITY_PRESETS, Quality, Settings, saveSettings } from './settings';
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -38,18 +39,48 @@ export class Ui {
   private perfVisible = false;
   private lastHud = 0;
   private game: Game | null = null;
+  private readonly settings: Settings;
+  private readonly settingsEl: HTMLElement;
+  private readonly confirmEl: HTMLElement;
+  private readonly toastEl: HTMLElement;
+  private readonly victoryEl: HTMLElement;
+  private readonly scanEl: HTMLElement;
+  private readonly coreBar: HTMLElement;
+  private toastTimer = 0;
+  /** Handlers wired by main.ts. */
+  handlers = {
+    onContinue: () => {},
+    onNewGame: () => {},
+    onResume: () => {},
+    onSave: () => {},
+    onReset: () => {},
+    onVictoryClose: () => {},
+  };
 
-  constructor(root: HTMLElement) {
+  constructor(root: HTMLElement, settings: Settings) {
     this.root = root;
+    this.settings = settings;
 
     // Main menu
     this.menu = el('div', 'overlay');
     this.menu.id = 'main-menu';
     const m = el('div', 'menu');
     m.append(el('h1', undefined, GAME_TITLE), el('div', 'subtitle', GAME_SUBTITLE.toUpperCase()));
+    const cont = el('button', 'btn hidden', 'FORTSETZEN');
+    cont.id = 'btn-continue';
+    cont.addEventListener('click', () => this.handlers.onContinue());
     const play = el('button', 'btn', 'SPIELEN');
     play.id = 'btn-play';
-    m.append(play);
+    play.addEventListener('click', () => {
+      if (cont.classList.contains('hidden')) this.handlers.onNewGame();
+      else this.confirm('Neues Spiel starten? Der bisherige Spielstand wird überschrieben.', () => this.handlers.onNewGame());
+    });
+    const set = el('button', 'btn', 'EINSTELLUNGEN');
+    set.id = 'btn-settings';
+    set.addEventListener('click', () => this.showSettings(true));
+    const col = el('div', 'menu-buttons');
+    col.append(cont, play, set);
+    m.append(col);
     const hint = el('div', 'hint');
     hint.innerHTML =
       'WASD / Pfeiltasten: Drohne steuern · Maus / Leertaste: Feuern<br>' +
@@ -65,18 +96,74 @@ export class Ui {
     p.append(el('h1', undefined, 'PAUSE'), el('div', 'subtitle', ' '));
     const resume = el('button', 'btn', 'WEITER');
     resume.id = 'btn-resume';
+    resume.addEventListener('click', () => this.handlers.onResume());
+    const save = el('button', 'btn', 'SPEICHERN');
+    save.id = 'btn-save';
+    save.addEventListener('click', () => this.handlers.onSave());
+    const pset = el('button', 'btn', 'EINSTELLUNGEN');
+    pset.addEventListener('click', () => this.showSettings(true));
+    const reset = el('button', 'btn btn-danger', 'FORTSCHRITT LÖSCHEN');
+    reset.id = 'btn-reset';
+    reset.addEventListener('click', () =>
+      this.confirm('Gesamten Fortschritt unwiderruflich löschen?', () => this.handlers.onReset()),
+    );
+    const pcol = el('div', 'menu-buttons');
+    pcol.append(resume, save, pset, reset);
+    p.append(pcol);
+    this.pause.append(p);
+
+    // Settings
+    this.settingsEl = el('div', 'overlay hidden');
+    this.settingsEl.id = 'settings';
+    const sm = el('div', 'menu');
+    sm.append(el('h1', undefined, 'EINSTELLUNGEN'), el('div', 'subtitle', ' '));
     const vol = el('label', 'setting');
-    vol.append(el('span', undefined, 'LAUTSTÄRKE '));
+    vol.append(el('span', undefined, 'LAUTSTÄRKE'));
     const range = el('input');
     range.type = 'range';
     range.min = '0';
     range.max = '100';
-    range.value = '50';
+    range.value = String(Math.round(settings.volume * 100));
     range.id = 'volume';
-    range.addEventListener('input', () => this.game?.sfx.setVolume(Number(range.value) / 100));
+    range.addEventListener('input', () => {
+      settings.volume = Number(range.value) / 100;
+      this.game?.sfx.setVolume(settings.volume);
+      saveSettings(settings);
+    });
     vol.append(range);
-    p.append(resume, el('div'), vol);
-    this.pause.append(p);
+    const q = el('div', 'setting');
+    q.append(el('span', undefined, 'GRAFIK'));
+    for (const key of Object.keys(QUALITY_PRESETS) as Quality[]) {
+      const b = el('button', 'chip', QUALITY_PRESETS[key].label);
+      b.dataset.q = key;
+      b.classList.toggle('active', settings.quality === key);
+      b.addEventListener('click', () => {
+        settings.quality = key;
+        saveSettings(settings);
+        q.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', (c as HTMLElement).dataset.q === key));
+        this.toast('Grafikqualität gilt ab dem nächsten Laden des Spiels.');
+      });
+      q.append(b);
+    }
+    const back = el('button', 'btn', 'ZURÜCK');
+    back.addEventListener('click', () => this.showSettings(false));
+    const scol = el('div', 'menu-buttons');
+    scol.append(vol, q, back);
+    sm.append(scol);
+    this.settingsEl.append(sm);
+
+    // Confirm dialog
+    this.confirmEl = el('div', 'overlay hidden');
+    this.confirmEl.id = 'confirm';
+    this.confirmEl.style.zIndex = '30';
+
+    // Victory
+    this.victoryEl = el('div', 'overlay hidden');
+    this.victoryEl.id = 'victory';
+
+    // Toast
+    this.toastEl = el('div', 'toast hidden');
+    this.toastEl.id = 'toast';
 
     // HUD
     this.hud = el('div', 'hud hidden');
@@ -86,7 +173,12 @@ export class Ui {
     this.infoEl = el('div', 'hud-info');
     this.rfEl = el('div', 'hud-rf', '0 RF');
     this.rfEl.id = 'hud-rf';
-    panel.append(el('div', 'hud-label', 'MATERIAL POINTS'), this.mpEl, this.rfEl, this.infoEl);
+    this.scanEl = el('div', 'hud-scan');
+    this.scanEl.id = 'hud-scan';
+    const barWrap = el('div', 'core-bar');
+    this.coreBar = el('div', 'core-bar-fill');
+    barWrap.append(this.coreBar);
+    panel.append(el('div', 'hud-label', 'MATERIAL POINTS'), this.mpEl, this.rfEl, this.infoEl, this.scanEl, barWrap);
     this.hud.append(panel);
 
     // Weapon bar
@@ -165,24 +257,77 @@ export class Ui {
     this.perf = el('div', 'perf hidden');
     this.perf.id = 'perf';
 
-    root.append(this.hud, this.weaponBar, this.panel, this.perf, this.pause, this.menu);
+    root.append(this.hud, this.weaponBar, this.panel, this.perf, this.pause, this.menu, this.settingsEl, this.victoryEl, this.confirmEl, this.toastEl);
   }
 
   bind(game: Game): void {
     this.game = game;
   }
 
-  onPlay(cb: () => void): void {
-    this.root.querySelector<HTMLButtonElement>('#btn-play')!.addEventListener('click', () => {
-      this.menu.classList.add('hidden');
-      this.hud.classList.remove('hidden');
-      this.weaponBar.classList.remove('hidden');
-      cb();
-    });
+  /** Shows/hides the main menu; `hasSave` toggles the Continue button. */
+  showMenu(show: boolean, hasSave = false): void {
+    this.menu.classList.toggle('hidden', !show);
+    this.root.querySelector('#btn-continue')!.classList.toggle('hidden', !hasSave);
+    this.root.querySelector('#btn-play')!.textContent = hasSave ? 'NEUES SPIEL' : 'SPIELEN';
+    this.hud.classList.toggle('hidden', show);
+    this.weaponBar.classList.toggle('hidden', show);
   }
 
-  onResume(cb: () => void): void {
-    this.root.querySelector<HTMLButtonElement>('#btn-resume')!.addEventListener('click', cb);
+  showSettings(show: boolean): void {
+    this.settingsEl.classList.toggle('hidden', !show);
+  }
+
+  /** In-page confirmation (no blocking browser dialogs). */
+  confirm(message: string, onYes: () => void): void {
+    const c = this.confirmEl;
+    c.replaceChildren();
+    const box = el('div', 'menu confirm-box');
+    box.append(el('p', undefined, message));
+    const yes = el('button', 'btn btn-danger', 'JA');
+    yes.id = 'confirm-yes';
+    const no = el('button', 'btn', 'ABBRECHEN');
+    no.id = 'confirm-no';
+    yes.addEventListener('click', () => {
+      c.classList.add('hidden');
+      onYes();
+    });
+    no.addEventListener('click', () => c.classList.add('hidden'));
+    box.append(yes, no);
+    c.append(box);
+    c.classList.remove('hidden');
+  }
+
+  toast(message: string, error = false, ms = 3000): void {
+    this.toastEl.textContent = message;
+    this.toastEl.classList.toggle('error', error);
+    this.toastEl.classList.remove('hidden');
+    clearTimeout(this.toastTimer);
+    this.toastTimer = window.setTimeout(() => this.toastEl.classList.add('hidden'), ms);
+  }
+
+  showVictory(game: Game): void {
+    const v = this.victoryEl;
+    v.replaceChildren();
+    const box = el('div', 'menu');
+    box.append(el('h1', undefined, 'KERN ZERSTÖRT'), el('div', 'subtitle', 'DIE WELT IST GEBROCHEN'));
+    const t = Math.floor(game.playTime);
+    const lines = [
+      `Spielzeit: ${Math.floor(t / 60)} min ${t % 60} s`,
+      `Zerstörte Zellen: ${fmt(game.stats.destroyed)}`,
+      `Material Points gesamt: ${fmt(game.progression.totalMp)}`,
+      `Resonance Fragments gesamt: ${fmt(game.progression.totalRf)}`,
+    ];
+    const stats = el('div', 'victory-stats');
+    for (const l of lines) stats.append(el('div', undefined, l));
+    const cont = el('button', 'btn', 'WEITERSPIELEN');
+    cont.id = 'btn-victory-continue';
+    cont.addEventListener('click', () => {
+      v.classList.add('hidden');
+      this.handlers.onVictoryClose();
+    });
+    box.append(stats, cont);
+    v.append(box);
+    v.classList.remove('hidden');
   }
 
   showPause(show: boolean): void {
@@ -203,6 +348,8 @@ export class Ui {
   toggleMute(): void {
     if (!this.game) return;
     const muted = this.game.sfx.toggleMute();
+    this.settings.muted = muted;
+    saveSettings(this.settings);
     this.muteBtn.classList.toggle('off', muted);
   }
 
@@ -224,6 +371,17 @@ export class Ui {
     const depth = Math.max(0, Math.floor(game.drone.y - game.world.height * 0.2));
     const em = pr.maxEmitters();
     this.infoEl.textContent = `Zerstört: ${fmt(game.stats.destroyed)} · Tiefe: ${depth} m` + (em ? ` · Emitter ${game.emitters.length}/${em}` : '');
+    const near = game.nearestCore();
+    if (near) {
+      const arrows = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
+      const a = Math.round(((Math.atan2(near.dy, near.dx) + Math.PI * 2) % (Math.PI * 2)) / (Math.PI / 4)) % 8;
+      this.scanEl.textContent = `RESONANZKERN ${arrows[a]} ${Math.round(near.dist)} m`;
+    } else {
+      this.scanEl.textContent = game.cores.length ? 'ALLE KERNE ZERSTÖRT' : '';
+    }
+    const total = game.cores.reduce((n, c) => n + c.total, 0);
+    const left = game.cores.reduce((n, c) => n + c.remaining, 0);
+    this.coreBar.style.width = total ? `${Math.round(((total - left) / total) * 100)}%` : '0%';
     const autoBtn = this.root.querySelector('#btn-auto')!;
     autoBtn.classList.toggle('locked', !pr.autoTargetUnlocked());
     autoBtn.classList.toggle('active', game.autoMode);

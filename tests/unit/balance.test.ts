@@ -14,7 +14,7 @@ import { Reactions } from '../../src/world/Reactions';
  */
 function simulate(seconds: number) {
   const w = new World(256, 256, 1337);
-  generateWorld(w, { skyFraction: 0.2 });
+  generateWorld(w);
   const p = new Progression();
   const laser = new CuttingLaser(p.laserStats());
   const r = new Reactions(w, p.reactionStats());
@@ -25,7 +25,7 @@ function simulate(seconds: number) {
     r.onDestroyed(x, y, m);
   };
   let x = 128.5;
-  let y = surfaceY(128, w, 0.2) - 4;
+  let y = surfaceY(128, w) - 4;
   const out = { endX: 0, endY: 0, hit: false };
   const timeline: { t: number; id: string }[] = [];
   const dt = 1 / 60;

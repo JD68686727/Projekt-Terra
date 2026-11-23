@@ -167,6 +167,30 @@ export class World {
     }
   }
 
+  /**
+   * Bulk-loads a row-major material array (from generation) with full
+   * durability. Chunks are left unmodified and all marked dirty.
+   */
+  loadMaterials(src: Uint8Array): void {
+    if (src.length !== this.width * this.height) throw new Error('Material array size mismatch');
+    const W = this.width;
+    for (const c of this.chunks) {
+      const gx = c.cx << CHUNK_SHIFT;
+      const gy = c.cy << CHUNK_SHIFT;
+      for (let ly = 0; ly < CHUNK_SIZE; ly++) {
+        const row = (gy + ly) * W + gx;
+        const base = ly << CHUNK_SHIFT;
+        for (let lx = 0; lx < CHUNK_SIZE; lx++) {
+          const m = src[row + lx];
+          c.mat[base + lx] = m;
+          c.hp[base + lx] = MATERIALS[m].durability;
+        }
+      }
+      c.modified = false;
+    }
+    this.markAllDirty();
+  }
+
   countSolid(): number {
     let n = 0;
     for (const c of this.chunks) for (let i = 0; i < CHUNK_CELLS; i++) if (c.mat[i] !== 0) n++;

@@ -11,17 +11,18 @@ function collectErrors(page: Page): string[] {
   return errors;
 }
 
-async function start(page: Page): Promise<void> {
-  await page.goto(URL);
+async function start(page: Page, url = URL): Promise<void> {
+  await page.goto(url);
   await page.locator('#btn-play').click();
   await expect(page.locator('#main-menu')).toBeHidden();
+  await page.waitForFunction(() => !!window.__game);
+  await expect(page.locator('#loading')).toBeHidden();
 }
 
 test('boots from nested path without console errors and renders non-black', async ({ page }) => {
   const errors = collectErrors(page);
   await page.goto(URL);
   await expect(page.locator('#btn-play')).toBeVisible();
-  await page.waitForFunction(() => !!window.__game);
   await start(page);
   await page.waitForTimeout(500);
   const shot = await page.screenshot({ path: 'test-results/gameplay.png' });
@@ -79,7 +80,7 @@ test('keyboard moves the drone and Esc pauses', async ({ page }) => {
 test('responsive: canvas fills small mobile viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await page.goto(URL);
-  await page.waitForFunction(() => !!window.__game);
+  await expect(page.locator('#btn-play')).toBeVisible();
   const box = (await page.locator('canvas').boundingBox())!;
   expect(Math.round(box.width)).toBe(390);
   expect(Math.round(box.height)).toBe(780);
@@ -185,4 +186,94 @@ test('auto-targeting and emitter mine without player input', async ({ page }) =>
   expect(await page.evaluate(() => window.__game!.emitters[0].firing)).toBe(true);
   await page.screenshot({ path: 'test-results/automation.png' });
   expect(errors).toEqual([]);
+});
+
+test('progress survives a page reload (IndexedDB) and Continue restores it', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=4242');
+  const box = (await page.locator('canvas').boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.9);
+  await page.mouse.down();
+  await page.waitForTimeout(2000);
+  await page.mouse.up();
+  await page.evaluate(() => window.__game!.progression.earn(1234));
+  const before = await page.evaluate(() => {
+    const g = window.__game!;
+    return { mp: Math.floor(g.progression.mp), destroyed: g.stats.destroyed, seed: g.world.seed, solid: g.world.countSolid() };
+  });
+  expect(before.destroyed).toBeGreaterThan(0);
+  await page.keyboard.press('Escape');
+  await page.locator('#btn-save').click();
+  await expect(page.locator('#toast')).toContainText('gespeichert');
+  await page.reload();
+  await expect(page.locator('#btn-continue')).toBeVisible();
+  await expect(page.locator('#btn-play')).toHaveText('NEUES SPIEL');
+  await page.locator('#btn-continue').click();
+  await page.waitForFunction(() => !!window.__game);
+  await expect(page.locator('#loading')).toBeHidden();
+  const after = await page.evaluate(() => {
+    const g = window.__game!;
+    return { mp: Math.floor(g.progression.mp), destroyed: g.stats.destroyed, seed: g.world.seed, solid: g.world.countSolid() };
+  });
+  expect(after).toEqual(before);
+  expect(errors).toEqual([]);
+});
+
+test('corrupted save is reported and does not crash the game', async ({ page }) => {
+  await start(page, URL + '?seed=99');
+  await page.keyboard.press('Escape');
+  await page.locator('#btn-save').click();
+  await expect(page.locator('#toast')).toContainText('gespeichert');
+  // Corrupt both slots directly in IndexedDB.
+  await page.evaluate(() => new Promise<void>((res, rej) => {
+    const r = indexedDB.open('projekt-terra', 1);
+    r.onsuccess = () => {
+      const tx = r.result.transaction('saves', 'readwrite');
+      tx.objectStore('saves').put({ version: 1, garbage: true }, 'main');
+      tx.objectStore('saves').put('nonsense', 'backup');
+      tx.oncomplete = () => { r.result.close(); res(); };
+      tx.onerror = () => rej(tx.error);
+    };
+    r.onerror = () => rej(r.error);
+  }));
+  await page.reload();
+  await expect(page.locator('#toast')).toContainText('beschädigt');
+  await expect(page.locator('#btn-continue')).toBeHidden();
+  await start(page, URL + '?seed=99');
+});
+
+test('destroying the resonance core shows the victory screen', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=7&size=256');
+  await expect(page.locator('#hud-scan')).toContainText('RESONANZKERN');
+  await page.evaluate(() => {
+    const g = window.__game!;
+    const c = g.cores[0].site;
+    for (let y = c.y - c.radius; y <= c.y + c.radius; y++)
+      for (let x = c.x - c.radius; x <= c.x + c.radius; x++)
+        if (g.world.getMat(x, y) === 6) g.world.damage(x, y, 65535);
+  });
+  await expect(page.locator('#victory')).toBeVisible();
+  await expect(page.locator('#victory')).toContainText('KERN ZERSTÖRT');
+  expect(await page.evaluate(() => window.__game!.paused)).toBe(true);
+  await page.screenshot({ path: 'test-results/victory.png' });
+  await page.locator('#btn-victory-continue').click();
+  expect(await page.evaluate(() => window.__game!.paused)).toBe(false);
+  await expect(page.locator('#hud-scan')).toContainText('ALLE KERNE');
+  expect(errors).toEqual([]);
+});
+
+test('reset progress requires confirmation and clears the save', async ({ page }) => {
+  await start(page, URL + '?seed=5');
+  await page.keyboard.press('Escape');
+  await page.locator('#btn-save').click();
+  await page.locator('#btn-reset').click();
+  await expect(page.locator('#confirm')).toBeVisible();
+  await page.locator('#confirm-no').click();
+  await expect(page.locator('#confirm')).toBeHidden();
+  await page.locator('#btn-reset').click();
+  await page.locator('#confirm-yes').click();
+  await page.waitForLoadState('load');
+  await expect(page.locator('#btn-play')).toHaveText('SPIELEN');
+  await expect(page.locator('#btn-continue')).toBeHidden();
 });

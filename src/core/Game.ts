@@ -1,6 +1,8 @@
 import { Application, BufferImageSource, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { World } from '../world/World';
-import { generateWorld, surfaceY } from '../world/generator';
+import { CoreSite, SKY_FRACTION, coreSites, countCoreCells, generateWorld, surfaceY } from '../world/generator';
+import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
+import type { UpgradeId } from '../progression/upgrades';
 import { MATERIALS, Mat } from '../world/materials';
 import { hash01, fbm } from '../world/rng';
 import { TerrainRenderer } from '../rendering/TerrainRenderer';
@@ -21,6 +23,18 @@ export interface GameOptions {
   worldWidth: number;
   worldHeight: number;
   seed: number;
+  /** Number of hidden resonance cores. */
+  cores: number;
+  /** Pre-generated materials (from the worker). Generated synchronously if absent. */
+  mats?: Uint8Array;
+  /** Particle pool size (quality setting). */
+  particles?: number;
+}
+
+export interface CoreState {
+  site: CoreSite;
+  total: number;
+  remaining: number;
 }
 
 export interface PerfStats {
@@ -43,7 +57,7 @@ export interface GameStats {
 
 export type WeaponId = 'laser' | 'pulse';
 
-const SKY = 0.2;
+const SKY = SKY_FRACTION;
 
 export class Game {
   readonly app: Application;
@@ -64,6 +78,14 @@ export class Game {
   private autoScan = 0;
   readonly perf: PerfStats = { fps: 0, frameMs: 0, simMs: 0, renderMs: 0, terrainMs: 0, uploads: 0, texels: 0, particles: 0, visibleChunks: 0, steps: 0 };
   readonly stats: GameStats = { destroyed: 0, destroyedByMat: new Array(MATERIALS.length).fill(0) };
+  readonly cores: CoreState[] = [];
+  /** Seconds of unpaused play. */
+  playTime = 0;
+  victorySeen = false;
+  /** Fired once when every core is destroyed. */
+  onVictory: (() => void) | null = null;
+  /** Fired when a core cell is destroyed (for UI feedback). */
+  onCoreHit: ((core: CoreState) => void) | null = null;
   paused = false;
 
   private readonly loop = new FixedLoop(60, 5);
@@ -89,10 +111,15 @@ export class Game {
     this.laser = new CuttingLaser(this.progression.laserStats());
     this.pulse = new PulseCannon(this.progression.pulseStats());
     this.world = new World(opts.worldWidth, opts.worldHeight, opts.seed);
-    generateWorld(this.world, { skyFraction: SKY });
+    if (opts.mats) this.world.loadMaterials(opts.mats);
+    else generateWorld(this.world, { cores: opts.cores });
+    for (const site of coreSites({ width: opts.worldWidth, height: opts.worldHeight, seed: opts.seed, cores: opts.cores })) {
+      const total = countCoreCells(this.world, site);
+      this.cores.push({ site, total, remaining: total });
+    }
 
     const cx = Math.floor(opts.worldWidth / 2);
-    const startY = surfaceY(cx, this.world, SKY) - 12;
+    const startY = surfaceY(cx, this.world) - 12;
     this.drone = new Drone(cx + 0.5, startY);
     this.progression.onChange = () => this.applyUpgrades();
     this.camera.x = this.camera.targetX = this.drone.x;
@@ -117,7 +144,7 @@ export class Game {
     };
     this.world.onHit = (x, y, m) => this.reactions.onHit(x, y, m);
     this.terrain = new TerrainRenderer(this.world);
-    this.particles = new Particles(900);
+    this.particles = new Particles(opts.particles ?? 900);
 
     this.scene.addChild(this.createBackdrop());
     this.scene.addChild(this.terrain.container);
@@ -258,6 +285,7 @@ export class Game {
 
   private tick(h: number): void {
     this.time += h;
+    this.playTime += h;
     let ax = this.input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']);
     let ay = this.input.axis(['KeyW', 'ArrowUp'], ['KeyS', 'ArrowDown']);
     // Touch: drone drifts toward the touch point while firing.
@@ -321,6 +349,7 @@ export class Game {
     this.stats.destroyedByMat[m]++;
     this.progression.earn(def.value);
     this.reactions.onDestroyed(x, y, m);
+    if (m === Mat.CoreMaterial) this.onCoreCellDestroyed(x, y);
     this.destroyedThisTick++;
     this.sfx.cellBreak(def.value >= 8);
     // Fewer particles per cell during mass destruction keeps the pool readable.
@@ -338,6 +367,86 @@ export class Game {
         def.emissive,
       );
     }
+  }
+
+  private onCoreCellDestroyed(x: number, y: number): void {
+    for (const c of this.cores) {
+      const r = c.site.radius + 1;
+      if (Math.abs(x - c.site.x) > r || Math.abs(y - c.site.y) > r || c.remaining === 0) continue;
+      c.remaining--;
+      this.onCoreHit?.(c);
+      if (c.remaining === 0) {
+        this.shake = 3;
+        for (let i = 0; i < 80; i++) {
+          const a = Math.random() * Math.PI * 2;
+          const v = 20 + Math.random() * 80;
+          this.particles.emit(c.site.x, c.site.y, Math.cos(a) * v, Math.sin(a) * v, i % 2 ? 0xd040ff : 0xffffff, 0.8 + Math.random() * 0.8, 1, 10, true);
+        }
+        this.sfx.pulse();
+      }
+      if (!this.victorySeen && this.cores.every((k) => k.remaining === 0)) {
+        this.victorySeen = true;
+        this.onVictory?.();
+      }
+      return;
+    }
+  }
+
+  /** Nearest core that still has material, for the scanner UI. */
+  nearestCore(): { core: CoreState; dist: number; dx: number; dy: number } | null {
+    let best: { core: CoreState; dist: number; dx: number; dy: number } | null = null;
+    for (const c of this.cores) {
+      if (c.remaining === 0) continue;
+      const dx = c.site.x - this.drone.x;
+      const dy = c.site.y - this.drone.y;
+      const dist = Math.hypot(dx, dy);
+      if (!best || dist < best.dist) best = { core: c, dist, dx, dy };
+    }
+    return best;
+  }
+
+  /** Snapshot of all persistent state. */
+  toSave(): SaveData {
+    const p = this.progression;
+    return {
+      version: SAVE_VERSION,
+      savedAt: Date.now(),
+      seed: this.world.seed,
+      width: this.world.width,
+      height: this.world.height,
+      progression: { mp: p.mp, totalMp: p.totalMp, rf: p.rf, totalRf: p.totalRf, levels: { ...p.levels } },
+      stats: { destroyed: this.stats.destroyed, playTime: this.playTime },
+      drone: { x: this.drone.x, y: this.drone.y },
+      emitters: this.emitters.map((e) => ({ x: e.x, y: e.y })),
+      victorySeen: this.victorySeen,
+      chunks: serializeChunks(this.world),
+    };
+  }
+
+  /** Restores a validated save onto a world generated from the same seed/size. */
+  applySave(d: SaveData): void {
+    const p = this.progression;
+    p.mp = d.progression.mp;
+    p.totalMp = d.progression.totalMp;
+    p.rf = d.progression.rf;
+    p.totalRf = d.progression.totalRf;
+    for (const id of Object.keys(p.levels) as UpgradeId[]) {
+      const v = d.progression.levels[id];
+      if (typeof v === 'number') p.levels[id] = v;
+    }
+    this.stats.destroyed = d.stats.destroyed;
+    this.playTime = d.stats.playTime;
+    this.victorySeen = d.victorySeen;
+    applySavedChunks(this.world, d.chunks);
+    for (const c of this.cores) c.remaining = countCoreCells(this.world, c.site);
+    this.drone.x = d.drone.x;
+    this.drone.y = d.drone.y;
+    this.camera.x = this.camera.targetX = this.drone.x;
+    this.camera.y = this.camera.targetY = this.drone.y;
+    this.applyUpgrades();
+    this.emitters.length = 0;
+    const es = p.emitterStats();
+    for (const e of d.emitters.slice(0, p.maxEmitters())) this.emitters.push(new Emitter(e.x, e.y, es));
   }
 
   private drawEmitters(): void {
@@ -435,7 +544,7 @@ export class Game {
       for (let bx = 0; bx < bw; bx++) {
         const wx = bx * scale;
         const wy = by * scale;
-        const surf = surfaceY(wx, this.world, SKY);
+        const surf = surfaceY(wx, this.world);
         const p = (by * bw + bx) * 4;
         if (wy < surf + 2) continue;
         const n = fbm(wx / 16, wy / 16, this.world.seed ^ 0xbac, 3);

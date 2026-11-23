@@ -205,3 +205,28 @@ html, body {
   .weapon-bar { flex-wrap: wrap; justify-content: center; width: calc(100vw - 20px); }
   .weapon-btn { padding: 8px 10px; font-size: 11px; }
 }
+
+/* --- M4: menus, dialogs, toast, scanner --- */
+.menu-buttons { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.menu-buttons .btn { min-width: 260px; }
+.btn-danger { border-color: #e0503a; }
+.btn-danger:hover, .btn-danger:focus-visible { background: rgba(224, 80, 58, 0.2); }
+.chip {
+  font-family: var(--font); font-size: 12px; color: var(--text); background: transparent;
+  border: 1px solid var(--line); padding: 6px 10px; cursor: pointer; letter-spacing: 0.1em;
+}
+.chip.active { border-color: var(--orange); color: #fff; }
+.setting { display: flex; gap: 10px; align-items: center; justify-content: center; margin: 10px 0; }
+.confirm-box { background: var(--panel); border: 1px solid var(--line); max-width: 420px; }
+.confirm-box p { line-height: 1.6; margin: 0 0 18px; }
+.toast {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); z-index: 40;
+  background: var(--panel); border: 1px solid var(--cyan); padding: 10px 16px; font-size: 13px;
+  max-width: calc(100vw - 40px); text-align: center; pointer-events: none;
+}
+.toast.error { border-color: #e0503a; color: #ffb4a8; }
+.hud-scan { color: #d58cff; font-size: 12px; margin-top: 4px; letter-spacing: 0.05em; }
+.core-bar { height: 4px; background: #1c2235; margin-top: 4px; }
+.core-bar-fill { height: 100%; width: 0; background: linear-gradient(90deg, #d040ff, #ffffff); }
+.victory-stats { margin: 0 0 26px; line-height: 1.9; color: var(--text); }
+#victory h1 { text-shadow: 0 0 24px rgba(208, 64, 255, 0.8), 3px 3px 0 #5a1080; }
