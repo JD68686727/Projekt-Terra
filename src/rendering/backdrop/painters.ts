@@ -415,3 +415,208 @@ export function cloud(c: Canvas, cx: number, cy: number, w: number, pal: readonl
     }
   }
 }
+
+// --- Natural landforms (v3) ------------------------------------------------
+
+/** Jittered-grid Voronoi: id of the nearest feature point and edge distance (d2 - d1). */
+function voronoi(x: number, y: number, size: number, seed: number): { id: number; edge: number; nx: number; ny: number } {
+  const gx = Math.floor(x / size);
+  const gy = Math.floor(y / size);
+  let d1 = 1e9;
+  let d2 = 1e9;
+  let id = 0;
+  for (let j = -1; j <= 1; j++) {
+    for (let i = -1; i <= 1; i++) {
+      const cx = gx + i;
+      const cy = gy + j;
+      const px = (cx + hash01(cx, cy, seed)) * size;
+      const py = (cy + hash01(cy, cx, seed ^ 0x5f)) * size;
+      const d = (px - x) ** 2 + (py - y) ** 2;
+      if (d < d1) {
+        d2 = d1;
+        d1 = d;
+        id = (cx * 73856093) ^ (cy * 19349663);
+      } else if (d < d2) d2 = d;
+    }
+  }
+  // Each facet gets a stable random tilt (its "plane normal").
+  const a = hash01(id, 1, seed) * Math.PI * 2;
+  const t = 0.35 + hash01(id, 2, seed) * 0.45;
+  return { id, edge: Math.sqrt(d2) - Math.sqrt(d1), nx: Math.cos(a) * t, ny: Math.sin(a) * t };
+}
+
+/** Facet lighting step for rock: base orientation (lit/shaded side) + facet tilt + facet edges. */
+function rockStep(x: number, y: number, side: number, facetSize: number, seed: number): number {
+  // Anisotropic: facets are stretched vertically → slab-like cliff planes, not cobbles.
+  const v = voronoi(x, y * 0.65, facetSize, seed);
+  // side: +1 lit face (faces left/up), -1 shaded face.
+  let l = side * 0.6 + (-v.nx * 0.6 - v.ny * 0.5) * 0.45;
+  l += (bayer(x, y) - 0.5) * 0.18;
+  let s = l > 0.55 ? 4 : l > 0.15 ? 3 : l > -0.3 ? 2 : 1;
+  if (v.edge < 0.8) s = Math.max(1, s - 1); // subtle fracture line between slabs
+  return s;
+}
+
+export interface MesaOpts {
+  /** Number of mesas over the canvas width. */
+  count: number;
+  maxH: number;
+  facet: number;
+  strata: number;
+  leaf: readonly number[] | null;
+  glow: readonly number[] | null;
+  bushes: boolean;
+}
+
+/**
+ * Tafelberge: flat-topped buttes with steep, faceted cliff walls, layered
+ * strata ledges and talus slopes at the base. Continuous silhouette (no
+ * stacked boxes); the lit side faces the light (left).
+ */
+export function mesas(c: Canvas, baseY: number, rock: readonly number[], seed: number, o: MesaOpts): void {
+  const W = c.w;
+  const feats: { cx: number; w: number; h: number }[] = [];
+  for (let k = 0; k < o.count; k++) {
+    feats.push({
+      cx: ((k + 0.2 + hash01(k, 1, seed) * 0.6) / o.count) * W,
+      w: (W / o.count) * (0.28 + hash01(k, 2, seed) * 0.4),
+      h: o.maxH * (0.45 + 0.55 * hash01(k, 3, seed)),
+    });
+  }
+  // Silhouette + owning feature per column.
+  const top = new Float32Array(W).fill(baseY);
+  const owner = new Int16Array(W).fill(-1);
+  for (let x = 0; x < W; x++) {
+    for (let k = 0; k < feats.length; k++) {
+      const f = feats[k];
+      let dx = x - f.cx;
+      if (dx > W / 2) dx -= W;
+      if (dx < -W / 2) dx += W;
+      const t = Math.abs(dx) / f.w;
+      // Terraced butte: summit → bench → lower bench → talus; tier edges jitter per side.
+      const sideSalt = dx < 0 ? 1 : 2;
+      const e1 = 0.3 + hash01(k, 10 + sideSalt, seed) * 0.15;
+      const e2 = e1 + 0.18 + hash01(k, 20 + sideSalt, seed) * 0.15;
+      const e3 = e2 + 0.15 + hash01(k, 30 + sideSalt, seed) * 0.12;
+      const b1 = 0.7 + hash01(k, 40 + sideSalt, seed) * 0.15;
+      const b2 = 0.38 + hash01(k, 50 + sideSalt, seed) * 0.15;
+      const ramp = (a: number, b: number, v: number) => Math.min(1, Math.max(0, (v - a) / (b - a)));
+      let p: number;
+      if (t < e1) p = 1;
+      else if (t < e1 + 0.05) p = 1 - ramp(e1, e1 + 0.05, t) * (1 - b1);
+      else if (t < e2) p = b1;
+      else if (t < e2 + 0.06) p = b1 - ramp(e2, e2 + 0.06, t) * (b1 - b2);
+      else if (t < e3) p = b2;
+      else if (t < e3 + 0.7) p = b2 * (1 - ramp(e3, e3 + 0.7, t)) ** 1.5;
+      else p = 0;
+      // Uneven rims and notches (low + mid frequency).
+      const rough = (valueNoise(x / 14, k * 7.1, seed ^ 0x3c) - 0.5) * 0.09 + (valueNoise(x / 4, k * 3.3, seed ^ 0x3d) - 0.5) * 0.03;
+      const hgt = f.h * Math.max(0, p + (p > 0 ? rough : 0));
+      const y = baseY - hgt;
+      if (y < top[x]) {
+        top[x] = y;
+        owner[x] = k;
+      }
+    }
+  }
+  // Smoothed silhouette for face orientation (raw rims are too noisy → stripes).
+  const smooth = new Float32Array(W);
+  const R = 14;
+  for (let x = 0; x < W; x++) {
+    let sum = 0;
+    for (let i = -R; i <= R; i++) sum += top[(x + i + W) % W];
+    smooth[x] = sum / (2 * R + 1);
+  }
+  for (let x = 0; x < W; x++) {
+    const ty = Math.floor(top[x]);
+    const k = owner[x];
+    let dxOwn = k >= 0 ? x - feats[k].cx : 0;
+    if (dxOwn > W / 2) dxOwn -= W;
+    if (dxOwn < -W / 2) dxOwn += W;
+    const slope = smooth[(x + 6) % W] - smooth[(x - 6 + W) % W]; // >0: surface falls to the right (left-facing slope)
+    const rimSlope = top[(x + 3) % W] - top[(x - 3 + W) % W];
+    for (let y = Math.max(0, ty); y < c.h; y++) {
+      const d = y - ty;
+      let s: number;
+      if (d === 0) s = 0; // crisp outline on the silhouette
+      else if (d <= 2 && Math.abs(rimSlope) < 3) s = 4; // lit plateau rim
+      else {
+        // Lit face: left-facing slopes near the rim; deeper down the butte's left half.
+        const side = d < 24 && Math.abs(slope) > 4 ? (slope > 0 ? 1 : -1) : dxOwn < 0 ? 1 : -1;
+        s = rockStep(x, y, side, o.facet, seed ^ 0x77);
+        // Strata ledges: wavy horizontal lines with a lit lip and shadow below.
+        const sy = y + valueNoise(x / 25, 0, seed ^ 0x88) * o.strata * 0.6;
+        const m = ((sy % o.strata) + o.strata) % o.strata;
+        // Strata only show in patches, as a soft one-step shadow.
+        if (m < 1 && valueNoise(x / 18, y / o.strata, seed ^ 0x8a) > 0.5) s = Math.max(1, s - 1);
+        // Talus near the base: darker, dithered rubble.
+        const toBase = (baseY - y) / Math.max(1, baseY - ty);
+        if (toBase < 0.25 && bayer(x, y) > toBase * 4) s = Math.max(1, s - 1);
+      }
+      put(c, x, y, rock[s]);
+    }
+    // Moss on flat tops and ledges facing up.
+    if (o.leaf && Math.abs(rimSlope) < 3) {
+      const hUp = Math.floor(hash01(x, 1, seed) * 3);
+      for (let j = -hUp; j < 2; j++) put(c, x, ty + j, o.leaf[j < 0 ? 4 : j === 0 ? 3 : 2]);
+    }
+  }
+  // Bushes and vines on the plateaus.
+  if (o.leaf && o.bushes) {
+    for (let k = 0; k < feats.length; k++) {
+      const f = feats[k];
+      const n = 1 + Math.floor(hash01(k, 9, seed) * 3);
+      for (let b = 0; b < n; b++) {
+        const x = Math.floor(f.cx + (hash01(k, 20 + b, seed) - 0.5) * f.w * 1.2 + W) % W;
+        if (owner[x] !== k) continue;
+        bush(c, x, Math.floor(top[x]) + 1, Math.floor(f.w * (0.1 + hash01(k, 30 + b, seed) * 0.1)), o.leaf, seed ^ (k * 131 + b));
+      }
+      const nv = Math.floor(hash01(k, 40, seed) * 4);
+      for (let v = 0; v < nv; v++) {
+        const x = Math.floor(f.cx + (hash01(k, 50 + v, seed) - 0.5) * f.w * 1.4 + W) % W;
+        vine(c, x, Math.floor(top[x]) + 2, Math.floor(f.h * (0.15 + hash01(k, 60 + v, seed) * 0.3)), o.leaf, o.glow && hash01(k, 70 + v, seed) > 0.4 ? o.glow : null, seed ^ x);
+      }
+    }
+  }
+}
+
+/**
+ * Natural mountain range from ridged noise: sharp crests, faceted faces,
+ * lit/shaded flanks from the local slope, light crest highlights.
+ */
+export function ridgedMountains(c: Canvas, baseY: number, maxH: number, rock: readonly number[], seed: number, period: number): void {
+  const W = c.w;
+  const top = new Float32Array(W);
+  for (let x = 0; x < W; x++) {
+    let h = 0;
+    let amp = 1;
+    let norm = 0;
+    for (let o = 0; o < 3; o++) {
+      const f = (2 + o * 2) * (1 << o);
+      // Periodic ridged noise: sin-based so the strip tiles.
+      const phase = hash01(o, 3, seed) * Math.PI * 2;
+      const n = Math.sin((x / W) * Math.PI * 2 * f / 2 + phase) * 0.5 + Math.sin((x / W) * Math.PI * 2 * (f + 1) + phase * 1.7) * 0.5;
+      h += (1 - Math.abs(n)) ** 2 * amp;
+      norm += amp;
+      amp *= 0.5;
+    }
+    top[x] = baseY - (h / norm) * maxH * (0.55 + 0.45 * Math.sin((x / W) * Math.PI * 2 * 2 + seed) ** 2);
+  }
+  void period;
+  for (let x = 0; x < W; x++) {
+    const ty = Math.floor(top[x]);
+    const slope = top[(x + 2) % W] - top[(x - 2 + W) % W];
+    const side = slope > 0.6 ? 1 : -1;
+    for (let y = Math.max(0, ty); y < c.h; y++) {
+      const d = y - ty;
+      let s: number;
+      if (d < 2) s = side > 0 ? 4 : 2; // crest highlight
+      else {
+        s = rockStep(x, y, side, 26, seed ^ 0x99);
+        // Gullies running down from the crest.
+        if (valueNoise(x / 4, y / 22, seed ^ 0x9a) > 0.72) s = Math.max(0, s - 1);
+      }
+      put(c, x, y, rock[s]);
+    }
+  }
+}

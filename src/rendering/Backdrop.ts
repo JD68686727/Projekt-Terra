@@ -1,7 +1,7 @@
 import { BufferImageSource, Container, Sprite, Texture, TilingSprite } from 'pixi.js';
 import { SKY_FRACTION } from '../world/generator';
 import { hash01, valueNoise } from '../world/rng';
-import { Canvas, canvas, cliffs, cloud, haze, hazeBand, mountains } from './backdrop/painters';
+import { Canvas, bush, canvas, haze, hazeBand, mesas, ridgedMountains } from './backdrop/painters';
 
 /**
  * Sky & horizon, drawn at the same density as the HD terrain (ART art
@@ -55,9 +55,9 @@ export class Backdrop {
     this.buildStars();
     this.far.addChild(this.planet(), this.moon(), this.clouds());
     this.mid.addChild(this.layerMountains());
-    this.near.addChild(this.layerCliffs(0x0e1, 0.5, 70, 18, 0.75, 26));
-    this.front.addChild(this.layerCliffs(0x0e2, 0.22, 52, 26, 0.6, 24));
-    this.fore.addChild(this.layerCliffs(0x0e3, -0.25, 34, 34, 0.45, 22));
+    this.near.addChild(this.layerMesas(0x0e1, 0.5, 62, 6, 26, false));
+    this.front.addChild(this.layerMesas(0x0e2, 0.22, 48, 8, 24, true));
+    this.fore.addChild(this.layerMesas(0x0e3, -0.3, 30, 9, 22, true));
   }
 
   private sky(top: number, h: number): TilingSprite {
@@ -218,7 +218,7 @@ export class Backdrop {
   private static readonly ROCK = [0x0e0b16, 0x2a2438, 0x433a56, 0x5f5576, 0x8a7fa0];
   private static readonly LEAF = [0x061412, 0x0d302c, 0x154c42, 0x206a58, 0x3c9478];
   private static readonly GLOW = [0xb8fff0, 0x3ff0d0];
-  private static readonly CLOUD = [0x4a2a5e, 0x7a4e8a, 0xa680b0];
+  private static readonly CLOUD = [0x3a2050, 0x4e2e66, 0x63407a, 0x7a5590, 0x9572a6];
 
   private layerSprite(c: Canvas, baseOffsetCells: number): TilingSprite {
     const s = new TilingSprite({ texture: tex(c.w, c.h, c.px), width: this.width * 3 * ART, height: c.h });
@@ -230,37 +230,54 @@ export class Backdrop {
 
   private layerMountains(): TilingSprite {
     const c = canvas(RIDGE_PERIOD * ART, 130 * ART);
-    mountains(c, c.h - 6 * ART, 78 * ART, 14, haze(Backdrop.ROCK, Backdrop.HAZE, 0.5), this.seed ^ 0xa1);
-    hazeBand(c, Math.floor(c.h * 0.55), c.h, Backdrop.HAZE, 200);
+    ridgedMountains(c, c.h - 4 * ART, 90 * ART, haze(Backdrop.ROCK, Backdrop.HAZE, 0.55), this.seed ^ 0xa1, RIDGE_PERIOD);
+    hazeBand(c, Math.floor(c.h * 0.5), c.h, Backdrop.HAZE, 210);
     return this.layerSprite(c, 26);
   }
 
-  /**
-   * Cliff layer in the unified style. hazeT > 0 pushes toward the horizon
-   * haze (far), hazeT < 0 darkens toward silhouette (nearest layer).
-   */
-  private layerCliffs(salt: number, hazeT: number, maxHCells: number, colCells: number, density: number, offset: number): TilingSprite {
-    const c = canvas(RIDGE_PERIOD * ART, (maxHCells + 22) * ART);
+  /** Mesa layer. hazeT > 0 → toward horizon haze (far), < 0 → darker (nearest). */
+  private layerMesas(salt: number, hazeT: number, maxHCells: number, count: number, offset: number, bushes: boolean): TilingSprite {
+    const c = canvas(RIDGE_PERIOD * ART, (maxHCells + 18) * ART);
     const tone = (p: readonly number[]) => (hazeT >= 0 ? haze(p, Backdrop.HAZE, hazeT) : haze(p, Backdrop.DARK, -hazeT));
-    cliffs(c, c.h - 2, maxHCells * ART, colCells * ART, tone(Backdrop.ROCK), tone(Backdrop.LEAF), hazeT < 0.3 ? Backdrop.GLOW : null, this.seed ^ salt, density);
-    if (hazeT > 0) hazeBand(c, Math.floor(c.h * 0.55), c.h, Backdrop.HAZE, Math.round(120 + hazeT * 120));
-    else hazeBand(c, Math.floor(c.h * 0.75), c.h, 0x1a1028, 110);
+    mesas(c, c.h - 2, tone(Backdrop.ROCK), this.seed ^ salt, {
+      count,
+      maxH: maxHCells * ART,
+      facet: hazeT > 0.4 ? 30 : 24,
+      strata: hazeT > 0.4 ? 22 : 18,
+      leaf: tone(Backdrop.LEAF),
+      glow: hazeT < 0.3 ? Backdrop.GLOW : null,
+      bushes,
+    });
+    if (hazeT > 0) hazeBand(c, Math.floor(c.h * 0.5), c.h, Backdrop.HAZE, Math.round(110 + hazeT * 140));
+    else hazeBand(c, Math.floor(c.h * 0.72), c.h, 0x1a1028, 120);
     return this.layerSprite(c, offset);
   }
 
+  /** Volumetric clouds: clusters of shaded puffs (same technique as the bushes) on a flat base. */
   private clouds(): Container {
     const layer = new Container();
-    const c = canvas(RIDGE_PERIOD * ART, 60 * ART);
-    for (let i = 0; i < 9; i++) {
+    const c = canvas(RIDGE_PERIOD * ART, 50 * ART);
+    for (let i = 0; i < 7; i++) {
       const x = Math.floor(hash01(i, 1, this.seed ^ 0xc1d) * c.w);
-      const y = Math.floor((20 + hash01(i, 2, this.seed ^ 0xc1d) * 30) * ART);
-      cloud(c, x, y, Math.floor((18 + hash01(i, 3, this.seed ^ 0xc1d) * 28) * ART), Backdrop.CLOUD, this.seed ^ i);
+      const y = Math.floor((30 + hash01(i, 2, this.seed ^ 0xc1d) * 12) * ART);
+      const w = (14 + hash01(i, 3, this.seed ^ 0xc1d) * 16) * ART;
+      const puffs = 3 + Math.floor(hash01(i, 4, this.seed ^ 0xc1d) * 3);
+      for (let p = 0; p < puffs; p++) {
+        const px = Math.floor(x - w / 2 + (w * (p + 0.5)) / puffs);
+        const r = Math.floor((w / puffs) * (0.8 + hash01(p, i, this.seed) * 0.5));
+        bush(c, px, y - Math.floor(r * (p === Math.floor(puffs / 2) ? 0.5 : 0.1)), r, Backdrop.CLOUD, this.seed ^ (i * 31 + p));
+      }
+      // Flat base: clip everything below the base line.
+      for (let yy = y + 2; yy < c.h; yy++) for (let xx = Math.floor(x - w); xx < x + w; xx++) {
+        const q = ((yy * c.w + (((xx % c.w) + c.w) % c.w)) * 4);
+        c.px[q + 3] = 0;
+      }
     }
     const s = new TilingSprite({ texture: tex(c.w, c.h, c.px), width: this.width * 3 * ART, height: c.h });
     s.scale.set(1 / ART);
     s.x = -this.width;
-    s.y = this.horizon - 72;
-    s.alpha = 0.85;
+    s.y = this.horizon - 78;
+    s.alpha = 0.8;
     layer.addChild(s);
     return layer;
   }
