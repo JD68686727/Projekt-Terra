@@ -1,5 +1,5 @@
 import { BufferImageSource, Container, Sprite, Texture, TilingSprite } from 'pixi.js';
-import { surfaceAt, SKY_FRACTION } from '../world/generator';
+import { SKY_FRACTION } from '../world/generator';
 import { fbm, hash01, valueNoise } from '../world/rng';
 
 /**
@@ -18,7 +18,7 @@ export class Backdrop {
 
   constructor(private readonly width: number, private readonly height: number, private readonly seed: number) {
     const skyH = Math.ceil(height * SKY_FRACTION + 120);
-    this.container.addChild(this.sky(skyH), this.far, this.mid, this.near, this.backWall());
+    this.container.addChild(this.sky(skyH), this.far, this.mid, this.near);
     this.far.addChild(this.planet());
     this.buildStars(skyH);
     this.mid.addChild(this.ridge(0x1a1030, 0x2a1a48, 0.55, 0x9a1, 70));
@@ -143,46 +143,6 @@ export class Backdrop {
     return s;
   }
 
-  /**
-   * Cave back-wall seen through tunnels: dark masonry-like rock blocks,
-   * dithered, with sparse props (dormant crystal shards, fossils, old pipes).
-   */
-  private backWall(): Sprite {
-    const W = this.width;
-    const H = this.height;
-    const px = new Uint8Array(W * H * 4);
-    const pal = [0x0b0a10, 0x110f18, 0x171521, 0x1e1b2b, 0x272335];
-    const bayer = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
-    const seed = this.seed;
-    for (let x = 0; x < W; x++) {
-      const surf = surfaceAt(x, H, seed);
-      for (let y = surf + 3; y < H; y++) {
-        const p = (y * W + x) * 4;
-        // Natural rock: large noise-shaped slabs separated by dark fissures,
-        // dithered between two steps, with sparse highlights on slab tops.
-        const n = valueNoise(x / 11, y / 8, seed ^ 0xbac);
-        const fissure = Math.abs(n - 0.5) < 0.03 || Math.abs(valueNoise(x / 5, y / 13, seed ^ 0xbad) - 0.5) < 0.018;
-        const tone = valueNoise(x / 30, y / 30, seed ^ 0xbae);
-        const depthDim = 1 - Math.min(0.45, (y - surf) / (H * 1.6));
-        let step = fissure ? 0 : 1 + ((tone * 16) > bayer[((y & 3) << 2) | (x & 3)] ? 1 : 0);
-        if (!fissure && Math.abs(valueNoise(x / 11, (y - 1) / 8, seed ^ 0xbac) - 0.5) < 0.03) step = 3; // lit edge under a fissure
-        let col = pal[Math.min(4, step)];
-        // Props, deterministic and sparse.
-        const prop = hash01(x >> 3, y >> 3, seed ^ 0xb2);
-        const lx = x & 7, ly = y & 7;
-        if (prop > 0.985 && lx >= 3 && lx <= 4 && ly >= 1 && ly <= 6 - Math.abs(lx - 3)) col = ly < 3 ? 0x1a5a6e : 0x123f4f; // dormant crystal shard
-        else if (prop < 0.006 && ly === 4 && lx > 0 && lx < 7) col = lx % 2 ? 0x3a3646 : 0x2c2938; // fossil spine
-        else if (prop > 0.975 && prop <= 0.985 && (lx === 3 || ly === 3)) col = 0x2a2f3a; // old pipe cross
-        col = scale(col, depthDim);
-        px[p] = (col >> 16) & 255;
-        px[p + 1] = (col >> 8) & 255;
-        px[p + 2] = col & 255;
-        px[p + 3] = 255;
-      }
-    }
-    return new Sprite(this.tex(W, H, px));
-  }
-
   /** Parallax + star twinkle. cam = camera centre in world cells. */
   update(dt: number, camX: number, camY: number): void {
     this.time += dt;
@@ -199,8 +159,4 @@ export class Backdrop {
       s.alpha = 0.35 + 0.45 * (0.5 + 0.5 * Math.sin(this.time * (0.7 + (i % 7) * 0.3) + i));
     }
   }
-}
-
-function scale(rgb: number, k: number): number {
-  return (Math.round(((rgb >> 16) & 255) * k) << 16) | (Math.round(((rgb >> 8) & 255) * k) << 8) | Math.round((rgb & 255) * k);
 }

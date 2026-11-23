@@ -4,12 +4,12 @@ import { Container } from 'pixi.js';
 export class Camera {
   x = 0;
   y = 0;
-  zoom = 7;
+  zoom = 4;
   targetX = 0;
   targetY = 0;
-  targetZoom = 7;
-  minZoom = 1.5;
-  maxZoom = 16;
+  targetZoom = 4;
+  minZoom = 2;
+  maxZoom = 12;
   viewW = 1;
   viewH = 1;
 

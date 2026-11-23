@@ -38,6 +38,8 @@ export interface GameOptions {
   particles?: number;
   /** Glow post-processing (off on low quality). */
   bloom?: boolean;
+  /** Art pixels per cell edge (4 = HD, 2 = low). */
+  detail?: number;
   /** Completed runs (permanent bonus). */
   prestige?: number;
 }
@@ -193,7 +195,7 @@ export class Game {
       },
     };
     this.world.onHit = (x, y, m) => this.reactions.onHit(x, y, m);
-    this.terrain = new TerrainRenderer(this.world);
+    this.terrain = new TerrainRenderer(this.world, opts.detail ?? 4);
     this.particles = new Particles(opts.particles ?? 900);
 
     this.backdrop = new Backdrop(this.world.width, this.world.height, this.world.seed);
@@ -219,7 +221,7 @@ export class Game {
     this.input = new Input(app.canvas);
     this.camera.resize(app.screen.width, app.screen.height);
     // Phones: start a bit further out so more terrain is visible.
-    if (app.screen.width < 600) this.camera.zoom = this.camera.targetZoom = 5;
+    if (app.screen.width < 600) this.camera.zoom = this.camera.targetZoom = 3;
     app.renderer.on('resize', (w: number, h: number) => this.camera.resize(w, h));
   }
 

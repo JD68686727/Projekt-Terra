@@ -42,8 +42,9 @@ export class Particles {
     s.position.set(x, y);
     s.tint = color;
     s.alpha = 1;
-    s.width = size;
-    s.height = size;
+    // HD: particles are half-cell sized so they match the finer art pixels.
+    s.width = size * 0.5;
+    s.height = size * 0.5;
     s.blendMode = additive ? 'add' : 'normal';
     this.vx[i] = vx;
     this.vy[i] = vy;

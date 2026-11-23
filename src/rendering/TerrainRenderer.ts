@@ -2,175 +2,338 @@ import { BufferImageSource, Container, Sprite, Texture } from 'pixi.js';
 import { CHUNK_SIZE, Chunk, World } from '../world/World';
 import { MATERIALS, Mat } from '../world/materials';
 import { hash01 } from '../world/rng';
-import { Neighbourhood, cellColor, shade } from './materialArt';
 import { surfaceAt } from '../world/generator';
+import { MOSS, OUTLINE, PALETTES, backColor, bladeColor, bladeHeight, fungusPixel, scale, subStep } from './materialArt';
 
 interface ChunkView {
-  chunk: Chunk;
+  chunkIndex: number; // -1 = free
+  painted: boolean;
+  lastUsed: number;
   pixels: Uint8Array;
   source: BufferImageSource;
   sprite: Sprite;
 }
 
 export interface TerrainRenderStats {
-  /** Chunks re-coloured & uploaded in the last frame. */
+  /** Chunks (re)painted this frame (full or partial). */
   uploads: number;
-  /** Texels uploaded in the last frame. */
+  /** Texels uploaded this frame. */
   texels: number;
-  /** CPU ms spent recolouring + scheduling uploads in the last frame. */
+  /** CPU ms spent painting this frame. */
   ms: number;
   visible: number;
+  /** GPU chunk textures currently allocated. */
+  pooled: number;
 }
 
+const POOL_MAX = 72;
+
 /**
- * One RGBA buffer texture per 64×64 chunk. Only dirty rows are recoloured,
- * and only that texel range is re-uploaded (texSubImage2D under WebGL).
- * Sprites outside the camera view are hidden (culled).
+ * HD terrain renderer.
+ *
+ * - Each cell is drawn as D×D art pixels (D = detail, 4 on medium/high).
+ * - Only chunks near the camera own a texture: views come from a bounded
+ *   pool and are recycled (least recently used) as the camera moves, so GPU
+ *   memory is independent of world size.
+ * - Newly visible chunks are painted fully (closest first, bounded per
+ *   frame); dirty rows of mapped chunks are repainted and uploaded partially
+ *   (texSubImage2D range). Unmapped dirty chunks are skipped — they are
+ *   painted from the current world state when they come into view.
+ * - Below the surface, air is painted as the cave back-wall; above it, air
+ *   is transparent so the sky shows through.
  */
 export class TerrainRenderer {
   readonly container = new Container();
-  readonly stats: TerrainRenderStats = { uploads: 0, texels: 0, ms: 0, visible: 0 };
-  private readonly views: ChunkView[] = [];
-  private readonly world: World;
-  /** Original surface height per column (moss placement). */
-  private readonly surface: Int32Array;
+  readonly stats: TerrainRenderStats = { uploads: 0, texels: 0, ms: 0, visible: 0, pooled: 0 };
+  readonly detail: number;
+  /** Max partially repainted chunks per frame. */
+  maxUploadsPerFrame = 48;
+  /** Max fully painted (newly visible) chunks per frame after the first frame. */
+  maxFullPaintsPerFrame = 3;
 
-  constructor(world: World) {
+  private readonly world: World;
+  private readonly views: ChunkView[] = [];
+  private readonly byChunk: (ChunkView | null)[];
+  private readonly surface: Int32Array;
+  private readonly side: number; // texture side in texels
+  private frameNo = 0;
+  private cx0 = 0;
+  private cy0 = 0;
+  private cx1 = -1;
+  private cy1 = -1;
+  private centreX = 0;
+  private centreY = 0;
+  private firstPaintDone = false;
+
+  constructor(world: World, detail = 4) {
     this.world = world;
+    this.detail = detail;
+    this.side = CHUNK_SIZE * detail;
+    this.byChunk = new Array(world.chunks.length).fill(null);
     this.surface = new Int32Array(world.width);
     for (let x = 0; x < world.width; x++) this.surface[x] = surfaceAt(x, world.height, world.seed);
     this.container.label = 'terrain';
-    for (const chunk of world.chunks) {
-      const pixels = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * 4);
-      const source = new BufferImageSource({
-        resource: pixels,
-        width: CHUNK_SIZE,
-        height: CHUNK_SIZE,
-        scaleMode: 'nearest',
-        autoGenerateMipmaps: false,
-      });
-      const sprite = new Sprite(new Texture({ source }));
-      sprite.x = chunk.cx * CHUNK_SIZE;
-      sprite.y = chunk.cy * CHUNK_SIZE;
-      sprite.roundPixels = true;
-      this.container.addChild(sprite);
-      this.views.push({ chunk, pixels, source, sprite });
-    }
   }
 
-  /** Max visible chunks recoloured/uploaded per frame. */
-  maxUploadsPerFrame = 48;
-  /** CPU time budget for recolouring per frame (ms). */
-  timeBudgetMs = 6;
-  /** Off-screen chunks pre-painted per frame (lazy background work). */
-  maxOffscreenPerFrame = 3;
+  /** Sets the visible world rectangle; chunks within it (+1 chunk margin) get mapped. */
+  cull(x0: number, y0: number, x1: number, y1: number): void {
+    const w = this.world;
+    this.cx0 = Math.max(0, Math.floor(x0 / CHUNK_SIZE) - 1);
+    this.cy0 = Math.max(0, Math.floor(y0 / CHUNK_SIZE) - 1);
+    this.cx1 = Math.min(w.chunksX - 1, Math.floor(x1 / CHUNK_SIZE) + 1);
+    this.cy1 = Math.min(w.chunksY - 1, Math.floor(y1 / CHUNK_SIZE) + 1);
+    this.centreX = (x0 + x1) / 2;
+    this.centreY = (y0 + y1) / 2;
+    this.frameNo++;
+    let visible = 0;
+    for (const v of this.views) {
+      if (v.chunkIndex < 0) continue;
+      const inRange = this.inRange(w.chunks[v.chunkIndex]);
+      v.sprite.visible = inRange && v.painted;
+      if (inRange) {
+        v.lastUsed = this.frameNo;
+        if (v.painted) visible++;
+      }
+    }
+    this.stats.visible = visible;
+  }
 
-  /**
-   * Recolour dirty rows and schedule partial uploads. Visible chunks go first
-   * (bounded per frame); off-screen chunks are painted a few per frame so a
-   * fresh world never causes one long frame.
-   */
+  private inRange(c: Chunk): boolean {
+    return c.cx >= this.cx0 && c.cx <= this.cx1 && c.cy >= this.cy0 && c.cy <= this.cy1;
+  }
+
   update(): void {
     const t0 = performance.now();
-    const all = this.world.takeDirty();
-    const dirty: Chunk[] = [];
-    const later: Chunk[] = [];
-    let offscreen = 0;
-    for (const c of all) {
-      const visible = this.views[c.cy * this.world.chunksX + c.cx].sprite.visible;
-      if (visible && dirty.length < this.maxUploadsPerFrame) dirty.push(c);
-      else if (!visible && offscreen < this.maxOffscreenPerFrame) {
-        dirty.push(c);
-        offscreen++;
-      } else later.push(c);
-    }
-    if (later.length) this.world.requeueDirty(later);
+    const w = this.world;
     let texels = 0;
-    let n = 0;
-    for (const chunk of dirty) {
-      // Time budget: never spend more than ~6 ms per frame painting; the rest waits.
-      if (n > 0 && performance.now() - t0 > this.timeBudgetMs) {
-        this.world.requeueDirty(dirty.slice(n));
-        break;
+    let uploads = 0;
+
+    // 1) Dirty rows of mapped, painted chunks → partial repaint + upload.
+    const dirty = w.takeDirty();
+    const later: Chunk[] = [];
+    for (const c of dirty) {
+      const v = this.byChunk[c.cy * w.chunksX + c.cx];
+      if (!v || !v.painted) {
+        w.clearDirty(c);
+        continue;
       }
-      n++;
-      const view = this.views[chunk.cy * this.world.chunksX + chunk.cx];
-      const y0 = Math.max(0, chunk.dirtyY0);
-      const y1 = Math.min(CHUNK_SIZE - 1, chunk.dirtyY1);
+      if (uploads >= this.maxUploadsPerFrame) {
+        later.push(c);
+        continue;
+      }
+      const y0 = Math.max(0, c.dirtyY0);
+      const y1 = Math.min(CHUNK_SIZE - 1, c.dirtyY1);
       if (y1 >= y0) {
-        this.paintRows(view, y0, y1);
-        const start = y0 * CHUNK_SIZE;
-        const end = (y1 + 1) * CHUNK_SIZE;
-        view.source.update(start, end);
+        this.paintRows(v, c, y0, y1);
+        const start = y0 * this.detail * this.side;
+        const end = (y1 + 1) * this.detail * this.side;
+        v.source.update(start, end);
         texels += end - start;
+        uploads++;
       }
-      this.world.clearDirty(chunk);
+      w.clearDirty(c);
     }
-    this.stats.uploads = n;
+    w.requeueDirty(later);
+
+    // 2) Newly visible chunks → map + full paint, closest to the view centre first.
+    const need: Chunk[] = [];
+    for (let cy = this.cy0; cy <= this.cy1; cy++) {
+      for (let cx = this.cx0; cx <= this.cx1; cx++) {
+        const idx = cy * w.chunksX + cx;
+        const v = this.byChunk[idx];
+        if (!v || !v.painted) need.push(w.chunks[idx]);
+      }
+    }
+    if (need.length) {
+      const d = (c: Chunk) => (c.cx * CHUNK_SIZE + 32 - this.centreX) ** 2 + (c.cy * CHUNK_SIZE + 32 - this.centreY) ** 2;
+      need.sort((a, b) => d(a) - d(b));
+      const budget = this.firstPaintDone ? this.maxFullPaintsPerFrame : need.length;
+      for (let k = 0; k < Math.min(budget, need.length); k++) {
+        const c = need[k];
+        const idx = c.cy * w.chunksX + c.cx;
+        const v = this.byChunk[idx] ?? this.acquire(idx);
+        if (!v) break;
+        this.paintRows(v, c, 0, CHUNK_SIZE - 1);
+        v.source.update();
+        v.painted = true;
+        v.sprite.visible = true;
+        texels += this.side * this.side;
+        uploads++;
+      }
+      this.firstPaintDone = true;
+    }
+
+    this.stats.uploads = uploads;
     this.stats.texels = texels;
+    this.stats.pooled = this.views.length;
     this.stats.ms = performance.now() - t0;
   }
 
-  /** Hide chunks outside the visible world-space rectangle. */
-  cull(x0: number, y0: number, x1: number, y1: number): void {
-    let n = 0;
-    for (const v of this.views) {
-      const sx = v.sprite.x;
-      const sy = v.sprite.y;
-      const vis = sx + CHUNK_SIZE >= x0 && sx <= x1 && sy + CHUNK_SIZE >= y0 && sy <= y1;
-      v.sprite.visible = vis;
-      if (vis) n++;
+  /** A view for a chunk: new while the pool has room, else the least recently used out-of-range one. */
+  private acquire(chunkIndex: number): ChunkView | null {
+    let v: ChunkView | null = null;
+    if (this.views.length < POOL_MAX) {
+      const pixels = new Uint8Array(this.side * this.side * 4);
+      const source = new BufferImageSource({ resource: pixels, width: this.side, height: this.side, scaleMode: 'nearest', autoGenerateMipmaps: false });
+      const sprite = new Sprite(new Texture({ source }));
+      sprite.scale.set(1 / this.detail);
+      sprite.roundPixels = true;
+      this.container.addChild(sprite);
+      v = { chunkIndex: -1, painted: false, lastUsed: 0, pixels, source, sprite };
+      this.views.push(v);
+    } else {
+      for (const cand of this.views) {
+        if (cand.chunkIndex >= 0 && this.inRange(this.world.chunks[cand.chunkIndex])) continue;
+        if (!v || cand.lastUsed < v.lastUsed) v = cand;
+      }
+      if (!v) return null;
+      if (v.chunkIndex >= 0) this.byChunk[v.chunkIndex] = null;
     }
-    this.stats.visible = n;
+    const c = this.world.chunks[chunkIndex];
+    v.chunkIndex = chunkIndex;
+    v.painted = false;
+    v.lastUsed = this.frameNo;
+    v.sprite.x = c.cx * CHUNK_SIZE;
+    v.sprite.y = c.cy * CHUNK_SIZE;
+    v.sprite.visible = false;
+    this.byChunk[chunkIndex] = v;
+    return v;
   }
 
-  private paintRows(view: ChunkView, y0: number, y1: number): void {
-    const { chunk, pixels } = view;
-    const world = this.world;
-    const seed = world.seed;
-    const gx0 = chunk.cx * CHUNK_SIZE;
-    const gy0 = chunk.cy * CHUNK_SIZE;
-    const nb: Neighbourhood = { up: false, down: false, left: false, right: false, nearAir: false, surfaceDepth: 0 };
-    for (let ly = y0; ly <= y1; ly++) {
-      const gy = gy0 + ly;
-      for (let lx = 0; lx < CHUNK_SIZE; lx++) {
-        const i = (ly << 6) | lx;
-        const p = i * 4;
-        const m = chunk.mat[i] as Mat;
-        if (m === Mat.Air) {
-          pixels[p + 3] = 0;
+  private paintRows(v: ChunkView, c: Chunk, y0: number, y1: number): void {
+    for (let ly = y0; ly <= y1; ly++) for (let lx = 0; lx < CHUNK_SIZE; lx++) this.paintCell(v.pixels, c, lx, ly);
+  }
+
+  /** Paints the D×D art pixels of one cell. */
+  private paintCell(px: Uint8Array, c: Chunk, lx: number, ly: number): void {
+    const D = this.detail;
+    const w = this.world;
+    const seed = w.seed;
+    const gx = c.cx * CHUNK_SIZE + lx;
+    const gy = c.cy * CHUNK_SIZE + ly;
+    const i = (ly << 6) | lx;
+    const m = c.mat[i] as Mat;
+    const stride = this.side * 4;
+    const base = ly * D * stride + lx * D * 4;
+    const surf = this.surface[gx];
+    const depth01 = Math.max(0, (gy - surf) / (w.height - surf));
+
+    const put = (si: number, sj: number, rgb: number, a = 255) => {
+      const p = base + sj * stride + si * 4;
+      px[p] = (rgb >> 16) & 255;
+      px[p + 1] = (rgb >> 8) & 255;
+      px[p + 2] = rgb & 255;
+      px[p + 3] = a;
+    };
+    // Air art pixel: sky (transparent) near/above the surface, back-wall below.
+    const air = (si: number, sj: number) => {
+      if (gy < surf + 2) put(si, sj, 0, 0);
+      else put(si, sj, backColor(gx * D + si, gy * D + sj, depth01, D, seed));
+    };
+
+    const up = w.getMat(gx, gy - 1) === Mat.Air;
+    const down = w.getMat(gx, gy + 1) === Mat.Air;
+    const left = w.getMat(gx - 1, gy) === Mat.Air;
+    const right = w.getMat(gx + 1, gy) === Mat.Air;
+
+    if (m === Mat.Air) {
+      const below = w.getMat(gx, gy + 1);
+      const above = w.getMat(gx, gy - 1);
+      const nearSurface = gy - surf < 6;
+      const grass = below !== Mat.Air && nearSurface && below !== Mat.TitaniumMatrix && !MATERIALS[below].emissive;
+      const fungus = below !== Mat.Air && !nearSurface && gy > surf + 10 && hash01(gx, gy, seed ^ 0xf6) > 0.93;
+      const drips = above !== Mat.Air && gy > surf + 3;
+      for (let sj = 0; sj < D; sj++) {
+        for (let si = 0; si < D; si++) {
+          const sx = gx * D + si;
+          const fromFloor = D - 1 - sj;
+          if (grass) {
+            const h = bladeHeight(sx, gy, D, seed);
+            if (fromFloor < h) {
+              put(si, sj, bladeColor(sx, fromFloor, h));
+              continue;
+            }
+          }
+          if (fungus) {
+            const f = fungusPixel(si, fromFloor, D);
+            if (f >= 0) {
+              put(si, sj, f);
+              continue;
+            }
+          }
+          if (drips && sj < 2 && hash01(sx, gy, seed ^ 0xd1) > (sj === 0 ? 0.55 : 0.82)) {
+            put(si, sj, PALETTES[Mat.Stone][sj === 0 ? 1 : 0]);
+            continue;
+          }
+          air(si, sj);
+        }
+      }
+      return;
+    }
+
+    const def = MATERIALS[m];
+    const pal = PALETTES[m];
+    const emissive = def.emissive;
+    const surfaceCell = gy - surf < 4;
+    const mossy = !emissive && surfaceCell && m !== Mat.TitaniumMatrix;
+    // Organic edges: exposed sides are eroded by 0..D/2 art pixels (per edge, deterministic).
+    const crisp = m === Mat.TitaniumMatrix || m === Mat.CoreMaterial;
+    const ero = (salt: number) => (crisp ? 0 : Math.floor(hash01(gx, gy, seed ^ salt) * (D * 0.5)));
+    const eT = up ? ero(0xe1) : 0;
+    const eB = down ? ero(0xe2) : 0;
+    const eL = left ? ero(0xe3) : 0;
+    const eR = right ? ero(0xe4) : 0;
+    // Fake AO: no air within 2 cells → darker interior.
+    const deep =
+      !up && !down && !left && !right &&
+      w.getMat(gx, gy - 2) !== Mat.Air && w.getMat(gx, gy + 2) !== Mat.Air &&
+      w.getMat(gx - 2, gy) !== Mat.Air && w.getMat(gx + 2, gy) !== Mat.Air;
+    const hp = c.hp[i];
+    const dmg = hp < def.durability ? hp / def.durability : 1;
+
+    for (let sj = 0; sj < D; sj++) {
+      for (let si = 0; si < D; si++) {
+        const dT = up ? sj - eT : 99;
+        const dB = down ? D - 1 - sj - eB : 99;
+        const dL = left ? si - eL : 99;
+        const dR = right ? D - 1 - si - eR : 99;
+        // Rounded corners where two exposed edges meet.
+        const corner =
+          !crisp &&
+          ((up && left && si + sj < Math.max(eT, eL) + 1) ||
+            (up && right && D - 1 - si + sj < Math.max(eT, eR) + 1) ||
+            (down && left && si + D - 1 - sj < Math.max(eB, eL) + 1) ||
+            (down && right && 2 * (D - 1) - si - sj < Math.max(eB, eR) + 1));
+        if (dT < 0 || dB < 0 || dL < 0 || dR < 0 || corner) {
+          air(si, sj);
           continue;
         }
-        const def = MATERIALS[m];
-        const gx = gx0 + lx;
-        nb.up = world.getMat(gx, gy - 1) === Mat.Air;
-        nb.down = world.getMat(gx, gy + 1) === Mat.Air;
-        nb.left = world.getMat(gx - 1, gy) === Mat.Air;
-        nb.right = world.getMat(gx + 1, gy) === Mat.Air;
-        nb.nearAir =
-          nb.up || nb.down || nb.left || nb.right ||
-          world.getMat(gx, gy - 2) === Mat.Air || world.getMat(gx, gy + 2) === Mat.Air ||
-          world.getMat(gx - 2, gy) === Mat.Air || world.getMat(gx + 2, gy) === Mat.Air;
-        nb.surfaceDepth = gy - this.surface[gx];
-        let rgb = cellColor(m, gx, gy, seed, nb, def.emissive);
-        // Damage: darken with a stable crack pattern as hit points drop.
-        const hp = chunk.hp[i];
-        if (hp < def.durability) {
-          const f = hp / def.durability;
-          rgb = shade(rgb, hash01(gx, gy, seed ^ 0xc7) > f ? 0.45 : 0.55 + 0.45 * f);
+        const sx = gx * D + si;
+        const sy = gy * D + sj;
+        let rgb: number;
+        if (dT === 0 && mossy) {
+          rgb = MOSS[hash01(sx, sy, seed ^ 0x3a) > 0.6 ? 4 : 3]; // mossy lip
+        } else if (dT === 1 && mossy) {
+          rgb = MOSS[hash01(sx, sy, seed ^ 0x3b) > 0.5 ? 2 : 1];
+        } else if (dB === 0 || dL === 0 || dR === 0) {
+          rgb = emissive ? pal[1] : OUTLINE; // dark outline on shadow sides
+        } else {
+          let step = subStep(m, sx, sy, gx, gy, D, seed);
+          if (dT === 0) step = Math.min(4, step + 2); // sunlit rim
+          else if (dT === 1) step = Math.min(4, step + 1);
+          else if (dB === 1) step = Math.max(0, step - 1);
+          else if (deep && !emissive) step = Math.max(0, step - 1);
+          rgb = pal[step];
         }
-        pixels[p] = (rgb >> 16) & 0xff;
-        pixels[p + 1] = (rgb >> 8) & 0xff;
-        pixels[p + 2] = rgb & 0xff;
-        pixels[p + 3] = 255;
+        // Damage: crack pixels spread as hit points fall.
+        if (dmg < 1 && hash01(sx, sy, seed ^ 0xc7) > 0.35 + dmg * 0.65) rgb = scale(rgb, 0.4);
+        put(si, sj, rgb);
       }
     }
   }
 
   destroy(): void {
-    for (const v of this.views) {
-      v.sprite.texture.destroy(true);
-    }
+    for (const v of this.views) v.sprite.texture.destroy(true);
     this.container.destroy({ children: true });
   }
 }

@@ -146,7 +146,7 @@ async function boot(): Promise<void> {
     loading.classList.remove('hidden');
     progress(0);
     const mats = await generateMaterialsAsync({ width, height, seed, cores: CORE_COUNT }, (p) => progress(p * 0.9));
-    const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores: CORE_COUNT, mats, particles: preset.particles, bloom: settings.quality !== 'low', prestige });
+    const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores: CORE_COUNT, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
     if (data) {
       try {
         g.applySave(data);
