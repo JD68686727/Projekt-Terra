@@ -23,6 +23,9 @@ function makeSave(world: World, over: Partial<SaveData> = {}): SaveData {
     drone: { x: 10, y: 20 },
     emitters: [{ x: 1, y: 2 }],
     victorySeen: false,
+    prestige: 0,
+    vaults: [false, true],
+    nano: null,
     chunks: serializeChunks(world),
     ...over,
   };
@@ -107,7 +110,7 @@ describe('validateSave', () => {
   });
 
   const bad: [string, (d: any) => void][] = [
-    ['wrong version', (d) => { d.version = 2; }],
+    ['wrong version', (d) => { d.version = 1; }],
     ['newer version', (d) => { d.version = 99; }],
     ['bad RLE sum', (d) => { d.chunks[0].mat = Uint8Array.from([1, 10]); }],
     ['zero run', (d) => { d.chunks[0].mat = Uint8Array.from([1, 0, 1, 255]); }],
@@ -254,5 +257,26 @@ describe('backup safety (lead review)', () => {
     const r = await store.load();
     expect(r.recoveredFromBackup).toBe(true);
     expect(r.data).not.toBeNull();
+  });
+});
+
+describe('save migration v1 → v2', () => {
+  it('upgrades a v1 save with defaults and validates', () => {
+    const w = new World(64, 64, 3);
+    const v2 = makeSave(w);
+    const { prestige: _p, vaults: _v, nano: _n, ...rest } = v2;
+    const v1 = { ...rest, version: 1 };
+    expect(validateSave(v1)).toBe(false);
+    const m = migrateSave(v1);
+    expect(validateSave(m)).toBe(true);
+    expect((m as SaveData).prestige).toBe(0);
+    expect((m as SaveData).vaults).toEqual([]);
+    expect((m as SaveData).nano).toBeNull();
+  });
+  it('rejects bad v2 fields', () => {
+    const w = new World(64, 64, 3);
+    expect(validateSave(makeSave(w, { prestige: -1 }))).toBe(false);
+    expect(validateSave(makeSave(w, { prestige: 1.5 }))).toBe(false);
+    expect(validateSave(makeSave(w, { nano: { x: NaN, y: 1 } }))).toBe(false);
   });
 });

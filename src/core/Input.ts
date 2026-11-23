@@ -7,6 +7,8 @@ export class Input {
   fire = false;
   /** Pointer is a touch pointer (affects controls). */
   touch = false;
+  /** A primary press happened since the last consumeClick() (survives taps shorter than a frame). */
+  private clicked = false;
   /** Accumulated wheel delta since last consume. */
   private wheel = 0;
   private readonly pressed = new Set<string>();
@@ -31,7 +33,10 @@ export class Input {
     el.addEventListener('pointerdown', (e) => {
       this.updatePointer(e);
       this.touch = e.pointerType === 'touch';
-      if (e.button === 0) this.fire = true;
+      if (e.button === 0) {
+        this.fire = true;
+        this.clicked = true;
+      }
       el.setPointerCapture(e.pointerId);
       el.focus({ preventScroll: true });
       e.preventDefault();
@@ -54,6 +59,12 @@ export class Input {
     const r = this.el.getBoundingClientRect();
     this.pointerX = e.clientX - r.left;
     this.pointerY = e.clientY - r.top;
+  }
+
+  consumeClick(): boolean {
+    const c = this.clicked;
+    this.clicked = false;
+    return c;
   }
 
   consumeWheel(): number {

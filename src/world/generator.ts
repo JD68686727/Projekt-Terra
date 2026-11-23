@@ -34,20 +34,22 @@ export function surfaceY(x: number, world: World): number {
 }
 
 /**
- * Deterministic core placement: one per horizontal slot, deep underground
- * (70–88 % of the solid depth), never overlapping.
+ * Deterministic core placement. A single core sits deep (70–88 % of the solid
+ * depth); with several cores they are staggered from shallow to deep so the
+ * game has a progression of goals.
  */
 export function coreSites(spec: WorldSpec): CoreSite[] {
   const { width, height, seed, cores } = spec;
   const out: CoreSite[] = [];
-  const radius = Math.max(4, Math.round(Math.min(width, height) / 160));
-  const shell = radius + 5;
+  const baseRadius = Math.max(4, Math.round(Math.min(width, height) / 160));
   const top = height * SKY_FRACTION;
   for (let i = 0; i < cores; i++) {
-    const slotW = width / cores;
-    const fx = 0.2 + 0.6 * hash01(i, 11, seed);
-    const fy = 0.7 + 0.18 * hash01(i, 13, seed);
-    const x = Math.floor(slotW * i + slotW * fx);
+    // Deeper cores are larger with thicker shells: later goals stay meaningful.
+    const radius = Math.round(baseRadius * (1 + 0.9 * i));
+    const shell = radius + 5 + 4 * i;
+    const fx = 0.15 + 0.7 * hash01(i, 11, seed);
+    const fy = cores === 1 ? 0.7 + 0.18 * hash01(i, 13, seed) : 0.3 + 0.58 * (i / (cores - 1)) + 0.04 * hash01(i, 13, seed);
+    const x = Math.floor(width * fx);
     const y = Math.floor(top + (height - top) * fy);
     out.push({
       x: Math.min(width - shell - 5, Math.max(shell + 5, x)),
@@ -78,6 +80,48 @@ function baseMaterial(x: number, y: number, height: number, seed: number, surfac
   return t > 0.35 ? Mat.DenseRock : Mat.Stone;
 }
 
+export interface VaultSite {
+  /** Interior rectangle (air), walls are 2 cells of Titanium Matrix around it. */
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+export const VAULT_W = 14;
+export const VAULT_H = 8;
+
+/** Hidden vaults ("Geheimkammern"): deterministic, away from cores. */
+export function vaultSites(spec: WorldSpec): VaultSite[] {
+  const { width, height, seed } = spec;
+  const count = Math.max(2, Math.min(8, Math.floor((width * height) / 400_000)));
+  const cores = coreSites(spec);
+  const top = height * SKY_FRACTION;
+  const out: VaultSite[] = [];
+  for (let i = 0, tries = 0; out.length < count && tries < count * 20; tries++, i++) {
+    const x = Math.floor(8 + (width - VAULT_W - 16) * hash01(i, 21, seed));
+    const y = Math.floor(top + 40 + (height - top - VAULT_H - 60) * hash01(i, 23, seed));
+    const cx = x + VAULT_W / 2;
+    const cy = y + VAULT_H / 2;
+    if (cores.some((c) => Math.hypot(c.x - cx, c.y - cy) < c.shell + 30)) continue;
+    if (out.some((v) => Math.abs(v.x0 - x) < VAULT_W * 3 && Math.abs(v.y0 - y) < VAULT_H * 4)) continue;
+    out.push({ x0: x, y0: y, x1: x + VAULT_W - 1, y1: y + VAULT_H - 1 });
+  }
+  return out;
+}
+
+function stampVault(out: Uint8Array, width: number, v: VaultSite): void {
+  for (let y = v.y0 - 2; y <= v.y1 + 2; y++) {
+    for (let x = v.x0 - 2; x <= v.x1 + 2; x++) {
+      const inside = x >= v.x0 && x <= v.x1 && y >= v.y0 && y <= v.y1;
+      const i = y * width + x;
+      if (!inside) out[i] = Mat.TitaniumMatrix;
+      // Crystal treasure on the floor, air above it.
+      else out[i] = y >= v.y1 - 2 && x > v.x0 + 2 && x < v.x1 - 2 ? Mat.ResonanceCrystal : Mat.Air;
+    }
+  }
+}
+
 /** Pure, worker-safe generation into a row-major material array. */
 export function generateMaterials(spec: WorldSpec, onProgress?: (p: number) => void): Uint8Array {
   const { width, height } = spec;
@@ -88,6 +132,7 @@ export function generateMaterials(spec: WorldSpec, onProgress?: (p: number) => v
     for (let y = 0; y < height; y++) out[y * width + x] = baseMaterial(x, y, height, seed, surf);
     if (onProgress && (x & 63) === 63) onProgress(x / width);
   }
+  for (const v of vaultSites({ ...spec, seed })) stampVault(out, width, v);
   for (const c of coreSites({ ...spec, seed })) stampCore(out, width, height, seed, c);
   return out;
 }

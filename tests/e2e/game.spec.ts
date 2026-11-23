@@ -242,25 +242,97 @@ test('corrupted save is reported and does not crash the game', async ({ page }) 
   await start(page, URL + '?seed=99');
 });
 
-test('destroying the resonance core shows the victory screen', async ({ page }) => {
+test('destroying all resonance cores shows the final screen; new world grants prestige', async ({ page }) => {
   const errors = collectErrors(page);
-  await start(page, URL + '?seed=7&size=256');
+  await start(page, URL + '?seed=7&size=512');
   await expect(page.locator('#hud-scan')).toContainText('RESONANZKERN');
-  await page.evaluate(() => {
-    const g = window.__game!;
-    const c = g.cores[0].site;
-    for (let y = c.y - c.radius; y <= c.y + c.radius; y++)
-      for (let x = c.x - c.radius; x <= c.x + c.radius; x++)
-        if (g.world.getMat(x, y) === 6) g.world.damage(x, y, 65535);
-  });
+  const destroyCore = (i: number) =>
+    page.evaluate((idx) => {
+      const g = window.__game!;
+      const c = g.cores[idx].site;
+      for (let y = c.y - c.radius; y <= c.y + c.radius; y++)
+        for (let x = c.x - c.radius; x <= c.x + c.radius; x++)
+          if (g.world.getMat(x, y) === 6) g.world.damage(x, y, 65535);
+    }, i);
+  expect(await page.evaluate(() => window.__game!.cores.length)).toBe(3);
+  await destroyCore(0);
+  await expect(page.locator('#toast')).toContainText('Resonanzkern 1/3');
+  await expect(page.locator('#victory')).toBeHidden();
+  await destroyCore(1);
+  await destroyCore(2);
   await expect(page.locator('#victory')).toBeVisible();
-  await expect(page.locator('#victory')).toContainText('KERN ZERSTÖRT');
+  await expect(page.locator('#victory')).toContainText('WELT GEBROCHEN');
   expect(await page.evaluate(() => window.__game!.paused)).toBe(true);
   await page.screenshot({ path: 'test-results/victory.png' });
   await page.locator('#btn-victory-continue').click();
   expect(await page.evaluate(() => window.__game!.paused)).toBe(false);
   await expect(page.locator('#hud-scan')).toContainText('ALLE KERNE');
+  // Re-open final screen via a fresh victory is not possible; start new world directly through the handler path.
+  await page.evaluate(() => window.__game!.onVictory?.());
+  await page.locator('#btn-new-world').click();
+  await page.waitForFunction(() => window.__game && window.__game.progression.prestige === 1);
+  await expect(page.locator('#loading')).toBeHidden();
+  expect(await page.evaluate(() => window.__game!.progression.mpMultiplier())).toBeCloseTo(1.5);
+  expect(await page.evaluate(() => window.__game!.progression.level('laserDamage'))).toBe(0);
   expect(errors).toEqual([]);
+});
+
+test('drill, nano swarm and fracture charge each destroy terrain', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=31');
+  await page.evaluate(() => {
+    const p = window.__game!.progression;
+    p.earn(20000);
+    p.earnRf(500);
+  });
+  await page.keyboard.press('KeyU');
+  for (const id of ['drillUnlock', 'nanoUnlock', 'fractureUnlock']) await page.locator('#buy-' + id).click();
+  await page.keyboard.press('KeyU');
+  await expect(page.locator('#weapon-drill')).toBeVisible();
+  const box = (await page.locator('canvas').boundingBox())!;
+  const aim = { x: box.x + box.width / 2, y: box.y + box.height * 0.9 };
+  const destroyed = () => page.evaluate(() => window.__game!.stats.destroyed);
+  await page.mouse.move(aim.x, aim.y);
+
+  await page.keyboard.press('Digit3');
+  let b = await destroyed();
+  await page.mouse.down();
+  await page.waitForTimeout(1500);
+  await page.mouse.up();
+  expect((await destroyed()) - b).toBeGreaterThan(10);
+
+  await page.keyboard.press('Digit4');
+  await page.mouse.click(aim.x, aim.y);
+  expect(await page.evaluate(() => window.__game!.nano.active)).toBe(true);
+  b = await destroyed();
+  await page.waitForTimeout(2500);
+  expect((await destroyed()) - b).toBeGreaterThan(3);
+
+  await page.keyboard.press('Digit5');
+  b = await destroyed();
+  await page.mouse.click(aim.x, aim.y);
+  await page.waitForTimeout(2500);
+  expect((await destroyed()) - b).toBeGreaterThan(20);
+  await page.screenshot({ path: 'test-results/weapons-m5.png' });
+  expect(errors).toEqual([]);
+});
+
+test('entering a hidden vault grants a reward once', async ({ page }) => {
+  await start(page, URL + '?seed=12');
+  const res = await page.evaluate(() => {
+    const g = window.__game!;
+    const v = g.vaults[0].site;
+    const rf0 = g.progression.rf;
+    g.drone.x = (v.x0 + v.x1) / 2;
+    g.drone.y = v.y0 + 2;
+    return { rf0, n: g.vaults.length };
+  });
+  expect(res.n).toBeGreaterThan(1);
+  await expect(page.locator('#toast')).toContainText('Geheimkammer');
+  const rf1 = await page.evaluate(() => window.__game!.progression.rf);
+  expect(rf1).toBeGreaterThanOrEqual(res.rf0 + 30);
+  await page.waitForTimeout(800);
+  expect(await page.evaluate(() => window.__game!.progression.rf)).toBeLessThan(rf1 + 30);
 });
 
 test('reset progress requires confirmation and clears the save', async ({ page }) => {

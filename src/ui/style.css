@@ -230,3 +230,5 @@ html, body {
 .core-bar-fill { height: 100%; width: 0; background: linear-gradient(90deg, #d040ff, #ffffff); }
 .victory-stats { margin: 0 0 26px; line-height: 1.9; color: var(--text); }
 #victory h1 { text-shadow: 0 0 24px rgba(208, 64, 255, 0.8), 3px 3px 0 #5a1080; }
+.weapon-btn { white-space: nowrap; }
+@media (max-width: 1100px) { .weapon-btn { padding: 8px 9px; font-size: 11px; } }

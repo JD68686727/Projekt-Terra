@@ -15,9 +15,22 @@ export type UpgradeId =
   | 'smartTarget'
   | 'emitterUnlock'
   | 'emitterCount'
-  | 'emitterPower';
+  | 'emitterPower'
+  | 'drillUnlock'
+  | 'drillPower'
+  | 'drillDepth'
+  | 'drillSplit'
+  | 'drillCooldown'
+  | 'nanoUnlock'
+  | 'nanoCount'
+  | 'nanoPower'
+  | 'nanoLeash'
+  | 'fractureUnlock'
+  | 'fractureReach'
+  | 'fractureDamage'
+  | 'fractureCooldown';
 
-export type UpgradeGroup = 'laser' | 'pulse' | 'resonance' | 'auto' | 'core';
+export type UpgradeGroup = 'laser' | 'pulse' | 'drill' | 'nano' | 'fracture' | 'resonance' | 'auto' | 'core';
 export type Currency = 'mp' | 'rf';
 
 export interface UpgradeDef {
@@ -52,6 +65,19 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'pulseDamage', group: 'pulse', name: 'Pulse-Schaden', desc: '+35 % Schaden', baseCost: 400, growth: 2.1, maxLevel: 20, requires: 'pulseUnlock' },
   { id: 'pulseRadius', group: 'pulse', name: 'Pulse-Radius', desc: '+2 Zellen Radius', baseCost: 500, growth: 2.1, maxLevel: 8, requires: 'pulseUnlock' },
   { id: 'pulseCooldown', group: 'pulse', name: 'Pulse-Ladezeit', desc: '−15 % Abklingzeit', baseCost: 450, growth: 2.0, maxLevel: 8, requires: 'pulseUnlock' },
+  { id: 'drillUnlock', group: 'drill', name: 'Drill Missile', desc: 'Bohrrakete freischalten [3]', baseCost: 2500, growth: 1, maxLevel: 1 },
+  { id: 'drillPower', group: 'drill', name: 'Bohrkopf', desc: '+35 % Bohrkraft (ab Stufe 5: breiter Tunnel)', baseCost: 600, growth: 2.0, maxLevel: 15, requires: 'drillUnlock' },
+  { id: 'drillDepth', group: 'drill', name: 'Bohrtiefe', desc: '+12 Zellen Tiefe', baseCost: 500, growth: 1.9, maxLevel: 12, requires: 'drillUnlock' },
+  { id: 'drillSplit', group: 'drill', name: 'Splitterköpfe', desc: '+1 Teilrakete am Tunnelende', baseCost: 30, growth: 2.2, maxLevel: 4, currency: 'rf', requires: 'drillUnlock' },
+  { id: 'drillCooldown', group: 'drill', name: 'Nachlader', desc: '−15 % Nachladezeit', baseCost: 700, growth: 2.0, maxLevel: 8, requires: 'drillUnlock' },
+  { id: 'nanoUnlock', group: 'nano', name: 'Nano Swarm', desc: 'Schwarm freischalten [4], Klick setzt Einsatzgebiet', baseCost: 40, growth: 1, maxLevel: 1, currency: 'rf' },
+  { id: 'nanoCount', group: 'nano', name: 'Schwarmgröße', desc: '+3 Nanos', baseCost: 25, growth: 1.7, maxLevel: 12, currency: 'rf', requires: 'nanoUnlock' },
+  { id: 'nanoPower', group: 'nano', name: 'Nano-Schneider', desc: '+30 % Nano-Schaden', baseCost: 900, growth: 2.0, maxLevel: 15, requires: 'nanoUnlock' },
+  { id: 'nanoLeash', group: 'nano', name: 'Einsatzradius', desc: '+5 Zellen Radius', baseCost: 800, growth: 2.0, maxLevel: 6, requires: 'nanoUnlock' },
+  { id: 'fractureUnlock', group: 'fracture', name: 'Fracture Charge', desc: 'Bruchladung freischalten [5]', baseCost: 80, growth: 1, maxLevel: 1, currency: 'rf' },
+  { id: 'fractureReach', group: 'fracture', name: 'Bruchausbreitung', desc: '+50 % Reichweite & Verzweigung', baseCost: 2000, growth: 2.1, maxLevel: 10, requires: 'fractureUnlock' },
+  { id: 'fractureDamage', group: 'fracture', name: 'Bruchenergie', desc: '+40 % Schaden', baseCost: 1500, growth: 2.1, maxLevel: 12, requires: 'fractureUnlock' },
+  { id: 'fractureCooldown', group: 'fracture', name: 'Schnellzünder', desc: '−15 % Abklingzeit', baseCost: 40, growth: 2.0, maxLevel: 6, currency: 'rf', requires: 'fractureUnlock' },
 ];
 
 export const UPGRADE_BY_ID: Readonly<Record<UpgradeId, UpgradeDef>> = Object.fromEntries(

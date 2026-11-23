@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "bench": "node scripts/bench.mjs 256,1024"
+    "bench": "node scripts/bench.mjs 1024x2048"
   },
   "dependencies": {
     "pixi.js": "^8.23.0"

@@ -1,6 +1,6 @@
 import { Application, BufferImageSource, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { World } from '../world/World';
-import { CoreSite, SKY_FRACTION, coreSites, countCoreCells, generateWorld, surfaceY } from '../world/generator';
+import { CoreSite, SKY_FRACTION, VaultSite, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
 import type { UpgradeId } from '../progression/upgrades';
 import { MATERIALS, Mat } from '../world/materials';
@@ -10,6 +10,9 @@ import { Camera } from '../rendering/Camera';
 import { Particles } from '../effects/Particles';
 import { CuttingLaser, BeamResult } from '../weapons/CuttingLaser';
 import { PulseCannon } from '../weapons/PulseCannon';
+import { DrillLauncher } from '../weapons/DrillMissile';
+import { NanoSwarm } from '../weapons/NanoSwarm';
+import { FractureCharge } from '../weapons/FractureCharge';
 import { Progression } from '../progression/Progression';
 import { Sfx } from '../audio/Sfx';
 import { Reactions } from '../world/Reactions';
@@ -29,6 +32,13 @@ export interface GameOptions {
   mats?: Uint8Array;
   /** Particle pool size (quality setting). */
   particles?: number;
+  /** Completed runs (permanent bonus). */
+  prestige?: number;
+}
+
+export interface VaultState {
+  site: VaultSite;
+  found: boolean;
 }
 
 export interface CoreState {
@@ -55,7 +65,7 @@ export interface GameStats {
   destroyedByMat: number[];
 }
 
-export type WeaponId = 'laser' | 'pulse';
+export type WeaponId = 'laser' | 'pulse' | 'drill' | 'nano' | 'fracture';
 
 const SKY = SKY_FRACTION;
 
@@ -67,6 +77,13 @@ export class Game {
   readonly progression = new Progression();
   readonly laser: CuttingLaser;
   readonly pulse: PulseCannon;
+  readonly drill: DrillLauncher;
+  readonly nano: NanoSwarm;
+  readonly fracture: FractureCharge;
+  readonly vaults: VaultState[] = [];
+  /** Fired when a vault is discovered (reward already granted). */
+  onVault: ((rf: number, mp: number) => void) | null = null;
+  private prevFire = false;
   readonly sfx = new Sfx();
   readonly drone: Drone;
   weapon: WeaponId = 'laser';
@@ -86,6 +103,8 @@ export class Game {
   onVictory: (() => void) | null = null;
   /** Fired when a core cell is destroyed (for UI feedback). */
   onCoreHit: ((core: CoreState) => void) | null = null;
+  /** Fired when one core is fully destroyed (index, cores destroyed so far). */
+  onCoreDestroyed: ((index: number, done: number) => void) | null = null;
   paused = false;
 
   private readonly loop = new FixedLoop(60, 5);
@@ -108,11 +127,18 @@ export class Game {
 
   constructor(app: Application, opts: GameOptions) {
     this.app = app;
+    this.progression.prestige = opts.prestige ?? 0;
     this.laser = new CuttingLaser(this.progression.laserStats());
     this.pulse = new PulseCannon(this.progression.pulseStats());
+    this.drill = new DrillLauncher(this.progression.drillStats());
+    this.nano = new NanoSwarm(this.progression.swarmStats());
     this.world = new World(opts.worldWidth, opts.worldHeight, opts.seed);
     if (opts.mats) this.world.loadMaterials(opts.mats);
     else generateWorld(this.world, { cores: opts.cores });
+    this.fracture = new FractureCharge(this.world, this.progression.fractureStats());
+    for (const site of vaultSites({ width: opts.worldWidth, height: opts.worldHeight, seed: opts.seed, cores: opts.cores })) {
+      this.vaults.push({ site, found: false });
+    }
     for (const site of coreSites({ width: opts.worldWidth, height: opts.worldHeight, seed: opts.seed, cores: opts.cores })) {
       const total = countCoreCells(this.world, site);
       this.cores.push({ site, total, remaining: total });
@@ -126,6 +152,20 @@ export class Game {
     this.camera.y = this.camera.targetY = this.drone.y + 20;
 
     this.reactions = new Reactions(this.world, this.progression.reactionStats());
+    this.drill.onEnd = (x, y) => {
+      for (let i = 0; i < 6; i++) this.particles.emit(x, y, (Math.random() - 0.5) * 40, (Math.random() - 0.5) * 40, 0xffb040, 0.3, 0.7, 0, true);
+    };
+    this.fracture.onDetonate = (x, y) => {
+      this.shake = Math.min(3, this.shake + 1.5);
+      this.sfx.pulse();
+      for (let i = 0; i < 30; i++) {
+        const a = (i / 30) * Math.PI * 2;
+        this.particles.emit(x, y, Math.cos(a) * 70, Math.sin(a) * 70, i % 2 ? 0xff7a1a : 0x29d8f0, 0.4, 0.8, 0, true);
+      }
+    };
+    this.fracture.onFront = (x, y, e) => {
+      if (((x * 7 + y * 13) & 3) === 0) this.particles.emit(x + 0.5, y + 0.5, 0, -5, e > 0.5 ? 0xffffff : 0x29d8f0, 0.25, 0.6, 0, true);
+    };
     this.reactions.events = {
       onResonance: (x, y) => {
         this.progression.earnRf(0.25);
@@ -178,6 +218,7 @@ export class Game {
     this.paused = p;
     this.loop.reset();
     this.input.fire = false;
+    this.input.consumeClick(); // drop clicks made while paused/in menus
     this.firing = false;
     this.sfx.laser(false, 0, false);
   }
@@ -188,10 +229,25 @@ export class Game {
     this.pulse.stats = this.progression.pulseStats();
     this.drone.speed = this.progression.droneSpeed();
     this.reactions.stats = this.progression.reactionStats();
+    this.drill.stats = this.progression.drillStats();
+    this.nano.stats = this.progression.swarmStats();
+    this.fracture.stats = this.progression.fractureStats();
     const es = this.progression.emitterStats();
     for (const e of this.emitters) e.setStats(es);
     if (!this.progression.autoTargetUnlocked()) this.autoMode = false;
-    if (!this.progression.pulseUnlocked() && this.weapon === 'pulse') this.weapon = 'laser';
+    if (!this.weaponUnlocked(this.weapon)) this.weapon = 'laser';
+  }
+
+  cycleWeapon(): void {
+    const order: WeaponId[] = ['laser', 'pulse', 'drill', 'nano', 'fracture'];
+    let i = order.indexOf(this.weapon);
+    for (let k = 0; k < order.length; k++) {
+      i = (i + 1) % order.length;
+      if (this.weaponUnlocked(order[i])) {
+        this.weapon = order[i];
+        return;
+      }
+    }
   }
 
   toggleAuto(): boolean {
@@ -210,8 +266,19 @@ export class Game {
     return true;
   }
 
+  weaponUnlocked(w: WeaponId): boolean {
+    const p = this.progression;
+    switch (w) {
+      case 'laser': return true;
+      case 'pulse': return p.pulseUnlocked();
+      case 'drill': return p.drillUnlocked();
+      case 'nano': return p.nanoUnlocked();
+      case 'fracture': return p.fractureUnlocked();
+    }
+  }
+
   selectWeapon(w: WeaponId): boolean {
-    if (w === 'pulse' && !this.progression.pulseUnlocked()) return false;
+    if (!this.weaponUnlocked(w)) return false;
     this.weapon = w;
     return true;
   }
@@ -273,8 +340,9 @@ export class Game {
     if (this.input.wasPressed('Equal') || this.input.wasPressed('NumpadAdd')) this.camera.zoomBy(1.25);
     if (this.input.wasPressed('Minus') || this.input.wasPressed('NumpadSubtract')) this.camera.zoomBy(0.8);
     if (this.input.wasPressed('Digit1')) this.selectWeapon('laser');
-    if (this.input.wasPressed('Digit2')) this.selectWeapon('pulse');
-    if (this.input.wasPressed('KeyQ')) this.selectWeapon(this.weapon === 'laser' ? 'pulse' : 'laser');
+    const keys: [string, WeaponId][] = [['Digit2', 'pulse'], ['Digit3', 'drill'], ['Digit4', 'nano'], ['Digit5', 'fracture']];
+    for (const [k, w] of keys) if (this.input.wasPressed(k) && !this.selectWeapon(w)) this.sfx.denied();
+    if (this.input.wasPressed('KeyQ')) this.cycleWeapon();
     if (this.input.wasPressed('KeyT') && !this.toggleAuto()) this.sfx.denied();
     if (this.input.wasPressed('KeyE')) {
       if (this.placeEmitter()) this.sfx.purchase();
@@ -314,6 +382,26 @@ export class Game {
       }
     }
     this.pulse.update(this.world, h);
+    // Latched clicks: taps shorter than one frame still count; Space acts as a click on its rising edge.
+    const space = this.input.keys.has('Space');
+    const click = this.input.consumeClick() || (space && !this.prevFire);
+    this.prevFire = space;
+    if (this.firing && this.weapon === 'drill' && this.drill.fire(this.drone.x, this.drone.y, this.aim.x, this.aim.y)) {
+      this.sfx.blast();
+    }
+    if (click && this.weapon === 'nano') {
+      if (Math.hypot(this.aim.x - this.drone.x, this.aim.y - this.drone.y) <= 90) {
+        this.nano.deploy(this.aim.x, this.aim.y);
+        this.sfx.purchase();
+      } else this.sfx.denied();
+    }
+    if (click && this.weapon === 'fracture' && !this.fracture.place(this.drone.x, this.drone.y, this.aim.x, this.aim.y)) {
+      this.sfx.denied();
+    }
+    this.drill.update(this.world, h);
+    if (this.nano.active) this.nano.update(this.world, h);
+    this.fracture.update(h);
+    if ((Math.floor(this.time * 60) & 15) === 0) this.checkVaults();
     for (const e of this.emitters) e.update(this.world, h, this.progression.materialAware());
     // Auto mode: laser fires by itself at scanned targets unless the player aims manually.
     let tx = this.aim.x;
@@ -376,6 +464,7 @@ export class Game {
       c.remaining--;
       this.onCoreHit?.(c);
       if (c.remaining === 0) {
+        this.onCoreDestroyed?.(this.cores.indexOf(c), this.cores.filter((k) => k.remaining === 0).length);
         this.shake = 3;
         for (let i = 0; i < 80; i++) {
           const a = Math.random() * Math.PI * 2;
@@ -389,6 +478,22 @@ export class Game {
         this.onVictory?.();
       }
       return;
+    }
+  }
+
+  private checkVaults(): void {
+    for (const v of this.vaults) {
+      if (v.found) continue;
+      const s = v.site;
+      if (this.drone.x >= s.x0 && this.drone.x <= s.x1 + 1 && this.drone.y >= s.y0 && this.drone.y <= s.y1 + 1) {
+        v.found = true;
+        const rf = 30;
+        const mp = Math.round(this.progression.totalMp * 0.1 + 1000);
+        this.progression.earnRf(rf);
+        this.progression.earn(mp);
+        this.sfx.purchase();
+        this.onVault?.(rf, mp);
+      }
     }
   }
 
@@ -419,6 +524,9 @@ export class Game {
       drone: { x: this.drone.x, y: this.drone.y },
       emitters: this.emitters.map((e) => ({ x: e.x, y: e.y })),
       victorySeen: this.victorySeen,
+      prestige: this.progression.prestige,
+      vaults: this.vaults.map((v) => v.found),
+      nano: this.nano.active ? { x: this.nano.anchorX, y: this.nano.anchorY } : null,
       chunks: serializeChunks(this.world),
     };
   }
@@ -437,6 +545,10 @@ export class Game {
     this.stats.destroyed = d.stats.destroyed;
     this.playTime = d.stats.playTime;
     this.victorySeen = d.victorySeen;
+    p.prestige = d.prestige;
+    d.vaults.forEach((f, i) => {
+      if (this.vaults[i]) this.vaults[i].found = f;
+    });
     applySavedChunks(this.world, d.chunks);
     for (const c of this.cores) c.remaining = countCoreCells(this.world, c.site);
     this.drone.x = d.drone.x;
@@ -447,11 +559,30 @@ export class Game {
     this.emitters.length = 0;
     const es = p.emitterStats();
     for (const e of d.emitters.slice(0, p.maxEmitters())) this.emitters.push(new Emitter(e.x, e.y, es));
+    if (d.nano && p.nanoUnlocked()) this.nano.deploy(d.nano.x, d.nano.y);
   }
 
   private drawEmitters(): void {
     const g = this.emitterGfx;
     g.clear();
+    // Drill missiles
+    for (const m of this.drill.missiles) {
+      g.rect(m.x - 0.6, m.y - 0.6, 1.2, 1.2).fill(0xffd27a);
+      g.moveTo(m.x, m.y).lineTo(m.x - m.dx * 3, m.y - m.dy * 3).stroke({ width: 0.6, color: 0xff7a1a, alpha: 0.7 });
+    }
+    // Nano swarm
+    if (this.nano.active) {
+      const n = this.nano.stats.count;
+      g.circle(this.nano.anchorX, this.nano.anchorY, this.nano.stats.leash).stroke({ width: 0.3, color: 0x29d8f0, alpha: 0.15 });
+      for (let i = 0; i < n; i++) {
+        g.rect(this.nano.x[i] - 0.35, this.nano.y[i] - 0.35, 0.7, 0.7).fill(this.nano.cutting[i] ? 0xffffff : 0x29d8f0);
+      }
+    }
+    // Fracture charges (blinking)
+    for (const c of this.fracture.charges) {
+      const on = Math.floor(c.fuseLeft * 8) % 2 === 0;
+      g.rect(c.x - 0.2, c.y - 0.2, 1.4, 1.4).fill(on ? 0xff3b2a : 0x5a1010);
+    }
     for (const e of this.emitters) {
       if (e.firing && e.beam.hit && !this.paused) {
         g.moveTo(e.x, e.y).lineTo(e.beam.endX, e.beam.endY).stroke({ width: 0.9, color: 0x29d8f0, alpha: 0.35 });
@@ -565,8 +696,11 @@ export class Game {
 
   destroy(): void {
     this.stop();
+    this.sfx.laser(false, 0, false);
     this.input.destroy();
+    this.app.stage.removeChild(this.scene);
     this.terrain.destroy();
+    this.scene.destroy({ children: true });
   }
 }
 

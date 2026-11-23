@@ -1,7 +1,7 @@
 import { CHUNK_SIZE, type Chunk, type World } from '../world/World';
 import { MATERIALS } from '../world/materials';
 
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 
 const CELLS = CHUNK_SIZE * CHUNK_SIZE;
 const MAX_DIM = 8192;
@@ -26,6 +26,12 @@ export interface SaveData {
   drone: { x: number; y: number };
   emitters: { x: number; y: number }[];
   victorySeen: boolean;
+  /** v2: completed runs (permanent MP bonus). */
+  prestige: number;
+  /** v2: per-vault discovered flags. */
+  vaults: boolean[];
+  /** v2: deployed nano swarm anchor, or null. */
+  nano: { x: number; y: number } | null;
   chunks: SavedChunk[];
 }
 
@@ -140,6 +146,9 @@ export function validateSave(data: unknown): data is SaveData {
   if (!Array.isArray(data.emitters)) return false;
   for (const e of data.emitters) if (!isObj(e) || !fin(e.x) || !fin(e.y)) return false;
   if (typeof data.victorySeen !== 'boolean') return false;
+  if (!fin(data.prestige) || (data.prestige as number) < 0 || !Number.isInteger(data.prestige)) return false;
+  if (!Array.isArray(data.vaults) || data.vaults.length > 64 || data.vaults.some((v) => typeof v !== 'boolean')) return false;
+  if (data.nano !== null && (!isObj(data.nano) || !fin(data.nano.x) || !fin(data.nano.y))) return false;
   if (!Array.isArray(data.chunks)) return false;
   const maxIndex = ((width as number) / CHUNK_SIZE) * ((height as number) / CHUNK_SIZE);
   const seen = new Set<number>();
@@ -150,7 +159,10 @@ export function validateSave(data: unknown): data is SaveData {
   return true;
 }
 
+/** Upgrades older saves step by step; unknown versions pass through and fail validation. */
 export function migrateSave(data: unknown): unknown {
-  if (isObj(data) && data.version === 1) return data;
-  return data;
+  if (!isObj(data)) return data;
+  let d: Record<string, unknown> = data;
+  if (d.version === 1) d = { ...d, version: 2, prestige: 0, vaults: [], nano: null };
+  return d;
 }

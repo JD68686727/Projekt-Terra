@@ -11,7 +11,16 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: 
 }
 
 const fmt = (n: number) => Math.floor(n).toLocaleString('de-DE');
-const GROUP_LABEL: Record<UpgradeGroup, string> = { laser: 'SCHNEIDLASER', pulse: 'PULSE CANNON', resonance: 'RESONANZ', auto: 'AUTOMATION', core: 'SYSTEME' };
+const GROUP_LABEL: Record<UpgradeGroup, string> = {
+  laser: 'SCHNEIDLASER',
+  pulse: 'PULSE CANNON',
+  drill: 'DRILL MISSILE',
+  nano: 'NANO SWARM',
+  fracture: 'FRACTURE CHARGE',
+  resonance: 'RESONANZ',
+  auto: 'AUTOMATION',
+  core: 'SYSTEME',
+};
 
 interface UpgradeRow {
   id: UpgradeId;
@@ -55,6 +64,7 @@ export class Ui {
     onSave: () => {},
     onReset: () => {},
     onVictoryClose: () => {},
+    onNewWorld: () => {},
   };
 
   constructor(root: HTMLElement, settings: Settings) {
@@ -183,7 +193,7 @@ export class Ui {
 
     // Weapon bar
     this.weaponBar = el('div', 'weapon-bar hidden');
-    for (const [id, label] of [['laser', '1 LASER'], ['pulse', '2 PULSE']] as const) {
+    for (const [id, label] of [['laser', '1 LASER'], ['pulse', '2 PULSE'], ['drill', '3 DRILL'], ['nano', '4 NANO'], ['fracture', '5 FRACTURE']] as const) {
       const b = el('button', 'weapon-btn', label);
       b.id = `weapon-${id}`;
       b.addEventListener('pointerdown', (e) => {
@@ -309,13 +319,15 @@ export class Ui {
     const v = this.victoryEl;
     v.replaceChildren();
     const box = el('div', 'menu');
-    box.append(el('h1', undefined, 'KERN ZERSTÖRT'), el('div', 'subtitle', 'DIE WELT IST GEBROCHEN'));
+    box.append(el('h1', undefined, 'WELT GEBROCHEN'), el('div', 'subtitle', `ALLE ${game.cores.length} RESONANZKERNE ZERSTÖRT`));
     const t = Math.floor(game.playTime);
     const lines = [
       `Spielzeit: ${Math.floor(t / 60)} min ${t % 60} s`,
       `Zerstörte Zellen: ${fmt(game.stats.destroyed)}`,
       `Material Points gesamt: ${fmt(game.progression.totalMp)}`,
       `Resonance Fragments gesamt: ${fmt(game.progression.totalRf)}`,
+      `Geheimkammern: ${game.vaults.filter((x) => x.found).length} / ${game.vaults.length}`,
+      `Echo-Stufe: ${game.progression.prestige}`,
     ];
     const stats = el('div', 'victory-stats');
     for (const l of lines) stats.append(el('div', undefined, l));
@@ -325,7 +337,15 @@ export class Ui {
       v.classList.add('hidden');
       this.handlers.onVictoryClose();
     });
-    box.append(stats, cont);
+    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: +50 % MP)`);
+    nw.id = 'btn-new-world';
+    nw.addEventListener('click', () => {
+      v.classList.add('hidden');
+      this.handlers.onNewWorld();
+    });
+    const col = el('div', 'menu-buttons');
+    col.append(nw, cont);
+    box.append(stats, col);
     v.append(box);
     v.classList.remove('hidden');
   }
@@ -389,7 +409,8 @@ export class Ui {
 
     for (const [id, b] of this.weaponBtns) {
       b.classList.toggle('active', game.weapon === id);
-      if (id === 'pulse') b.classList.toggle('locked', !pr.pulseUnlocked());
+      b.classList.toggle('locked', !game.weaponUnlocked(id));
+      b.classList.toggle('hidden', id !== 'laser' && id !== 'pulse' && !game.weaponUnlocked(id));
     }
     const cd = game.pulse.cooldownLeft / game.pulse.stats.cooldown;
     this.pulseCd.style.width = `${Math.round(Math.max(0, cd) * 100)}%`;

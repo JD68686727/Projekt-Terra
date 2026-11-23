@@ -3,6 +3,9 @@ import type { LaserStats } from '../weapons/CuttingLaser';
 import type { PulseStats } from '../weapons/PulseCannon';
 import type { ReactionStats } from '../world/Reactions';
 import type { EmitterStats } from '../automation/Emitter';
+import type { DrillStats } from '../weapons/DrillMissile';
+import type { SwarmStats } from '../weapons/NanoSwarm';
+import type { FractureStats } from '../weapons/FractureCharge';
 
 export type BuyResult = 'ok' | 'maxed' | 'locked' | 'insufficient';
 
@@ -13,6 +16,8 @@ export class Progression {
   /** Resonance Fragments (special currency, earned from resonance chains). */
   rf = 0;
   totalRf = 0;
+  /** Completed runs; each grants a permanent +50 % MP bonus. */
+  prestige = 0;
   readonly levels: Record<UpgradeId, number>;
   onChange: (() => void) | null = null;
 
@@ -97,7 +102,7 @@ export class Progression {
   }
 
   mpMultiplier(): number {
-    return 1 + 0.25 * this.levels.mpMultiplier;
+    return (1 + 0.25 * this.levels.mpMultiplier) * (1 + 0.5 * this.prestige);
   }
 
   droneSpeed(): number {
@@ -111,6 +116,49 @@ export class Progression {
       range: 60 + 12 * l.laserRange,
       width: 1 + l.laserWidth,
       pierce: 1 + l.laserPierce,
+    };
+  }
+
+  drillUnlocked(): boolean {
+    return this.levels.drillUnlock > 0;
+  }
+
+  drillStats(): DrillStats {
+    const l = this.levels;
+    return {
+      speed: 70,
+      power: 60 * Math.pow(1.35, l.drillPower),
+      depth: 25 + 12 * l.drillDepth,
+      splits: l.drillSplit,
+      radius: l.drillPower >= 5 ? 1 : 0,
+      cooldown: 1.2 * Math.pow(0.85, l.drillCooldown),
+      range: 120,
+    };
+  }
+
+  nanoUnlocked(): boolean {
+    return this.levels.nanoUnlock > 0;
+  }
+
+  swarmStats(): SwarmStats {
+    const l = this.levels;
+    return { count: Math.min(64, 6 + 3 * l.nanoCount), dps: 25 * Math.pow(1.3, l.nanoPower), leash: 18 + 5 * l.nanoLeash, speed: 22 };
+  }
+
+  fractureUnlocked(): boolean {
+    return this.levels.fractureUnlock > 0;
+  }
+
+  fractureStats(): FractureStats {
+    const l = this.levels;
+    return {
+      // Energy (decay) shapes the crater; maxCells is only a safety cap.
+      maxCells: Math.round(900 * Math.pow(1.5, l.fractureReach)),
+      damage: 400 * Math.pow(1.4, l.fractureDamage),
+      decay: 0.1 * Math.pow(0.86, l.fractureReach),
+      fuse: 1.2,
+      cooldown: 6 * Math.pow(0.85, l.fractureCooldown),
+      range: 70,
     };
   }
 

@@ -5,7 +5,8 @@
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 
-const sizes = (process.argv[2] ?? '256,1024').split(',').map(Number);
+// Each entry: WIDTHxHEIGHT or a single size (square).
+const sizes = (process.argv[2] ?? '1024x2048').split(',');
 const server = spawn('node', ['scripts/serve.mjs', 'dist', '4174', '/games/terra/'], { stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 600));
 const browser = await chromium.launch({
@@ -16,10 +17,11 @@ try {
   for (const size of sizes) {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     const t0 = Date.now();
-    await page.goto(`http://localhost:4174/games/terra/index.html?size=${size}`);
+    const q = size.includes('x') ? '' : `?size=${size}`;
+    await page.goto(`http://localhost:4174/games/terra/index.html${q}`);
+    await page.click('#btn-play');
     await page.waitForFunction(() => !!window.__game);
     const bootMs = Date.now() - t0;
-    await page.click('#btn-play');
     const box = await page.locator('canvas').boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.85);
     await page.mouse.down();

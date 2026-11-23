@@ -3,7 +3,7 @@ import { Game } from './core/Game';
 import { Ui } from './ui/Ui';
 import { QUALITY_PRESETS, loadSettings } from './ui/settings';
 import { createPlatformAdapter } from './platform/BlakeridgeAdapter';
-import { GAME_TITLE, CORE_COUNT, DEFAULT_WORLD_SIZE } from './config/meta';
+import { GAME_TITLE, CORE_COUNT, DEFAULT_WORLD_WIDTH, DEFAULT_WORLD_HEIGHT } from './config/meta';
 import { generateMaterialsAsync } from './world/generateAsync';
 import { createSaveStore, SaveStore } from './storage/SaveStore';
 import type { SaveData } from './storage/saveFormat';
@@ -127,17 +127,24 @@ async function boot(): Promise<void> {
     }
   };
 
-  const startGame = async (data: SaveData | null): Promise<void> => {
+  const startGame = async (data: SaveData | null, prestige = 0): Promise<void> => {
+    if (game) {
+      game.destroy();
+      game = null;
+      window.__game = undefined;
+    }
+    blockingOverlay = false;
+    userPaused = false;
     const url = urlParams();
     const seed = data ? data.seed : (url.seed ?? randomSeed());
-    const width = data ? data.width : (url.size ?? DEFAULT_WORLD_SIZE);
-    const height = data ? data.height : width;
+    const width = data ? data.width : (url.size ?? DEFAULT_WORLD_WIDTH);
+    const height = data ? data.height : url.size ?? DEFAULT_WORLD_HEIGHT;
     ui.showMenu(false);
     loadingTitle.textContent = 'Welt wird erzeugt…';
     loading.classList.remove('hidden');
     progress(0);
     const mats = await generateMaterialsAsync({ width, height, seed, cores: CORE_COUNT }, (p) => progress(p * 0.9));
-    const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores: CORE_COUNT, mats, particles: preset.particles });
+    const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores: CORE_COUNT, mats, particles: preset.particles, prestige });
     if (data) {
       try {
         g.applySave(data);
@@ -152,6 +159,10 @@ async function boot(): Promise<void> {
     g.sfx.unlock();
     g.sfx.setVolume(settings.volume);
     if (settings.muted && !g.sfx.muted) ui.toggleMute();
+    g.onCoreDestroyed = (_i, done) => {
+      if (done < g.cores.length) ui.toast(`Resonanzkern ${done}/${g.cores.length} zerstört! Der Scanner zeigt den nächsten.`, false, 5000);
+    };
+    g.onVault = (rf, mp) => ui.toast(`Geheimkammer entdeckt! +${rf} RF, +${mp.toLocaleString('de-DE')} MP`, false, 5000);
     g.onVictory = () => {
       blockingOverlay = true;
       applyPause();
@@ -182,6 +193,10 @@ async function boot(): Promise<void> {
       game?.stop();
       location.reload();
     })();
+  };
+  ui.handlers.onNewWorld = () => {
+    const next = (game?.progression.prestige ?? 0) + 1;
+    void startGame(null, next).catch(fatal);
   };
   ui.handlers.onVictoryClose = () => {
     blockingOverlay = false;
