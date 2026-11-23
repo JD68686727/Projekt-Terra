@@ -1,5 +1,13 @@
 # Progress
 
+## 2026-11-23 — HD art pass + fog of war
+- Terrain drawn at 4×4 art pixels per cell (2×2 on low quality); chunk textures pooled (max 72, LRU) so GPU memory is independent of world size; newly visible chunks painted closest-first (3/frame), dirty rows partially re-uploaded.
+- Organic eroded edges with outlines and rounded corners, mossy lips, grass blades, ceiling drips, glowing cave fungi, HD cave back-wall with props.
+- Fog of war (FogMap, 4-cell texels, linear-filtered cloudy fog), persisted in save v3 (+ v2→v3 migration). Revealed around rig (46), emitters, nano area.
+- HD backdrop: dithered 4-stop sky, colour nebula, 420 stars incl. cross stars, gas giant (bands, storm, terminator, ring with gap), cratered moon, three tileable parallax ridges with crests, strata and glowing alien plants.
+- Camera default zoom 4 (phones 3) = 1 screen px per art px; particles halved; lighting milder (fog now does the hiding); nano deploy range 130.
+- Tests: 104 unit, 15 e2e. Bench 1024×2048: terrain 0.6 ms, render 1.25 ms, heap 52 MB.
+
 ## 2026-11-23 — Art pass ("indie detail")
 - Terrain palettes/patterns per material, moss, rims, AO; depth darkness + rig light; bloom; parallax pixel sky with gas giant; natural cave back-wall with props; dust motes; pixel sprites for rig/emitters; pixel font + framed UI.
 - Fixed during review: stretched sky dither, off-screen planet/stars, brick-like back-wall, bloom filterArea clipping half the screen, messy planet ring, noisy stone dithering.

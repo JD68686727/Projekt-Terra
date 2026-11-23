@@ -47,3 +47,8 @@ src/
 - `rendering/sprites.ts`: hand-drawn character-map sprites (rig with thruster/eye animation, emitter) at 4 art pixels per cell.
 - UI: Pixelify Sans (OFL-1.1, bundled via @fontsource, no CDN), notched pixel frames.
 - `npm run build && node scripts/shots.mjs` renders review screenshots to `test-results/shots/`.
+
+## HD renderer + fog (supersedes parts of the art pass)
+- `TerrainRenderer`: D×D art pixels per cell, pooled LRU chunk views, air below the surface painted as back-wall inside the chunk texture.
+- `world/FogMap.ts` (state, RLE, persisted) + `rendering/FogRenderer.ts` (one linear-filtered texture, partial row uploads).
+- Layer order: backdrop → terrain → fog → lighting → particles/FX → sprites.

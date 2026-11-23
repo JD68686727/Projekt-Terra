@@ -42,7 +42,7 @@ export class FogRenderer {
       for (let x = 0; x < fw; x++) {
         const i = y * fw + x;
         // Slight alpha variation makes the fog look cloudy under linear filtering.
-        this.px[i * 4 + 3] = data[i] ? 0 : 236 + ((x * 7 + y * 13) % 20);
+        this.px[i * 4 + 3] = data[i] ? 0 : 232 + ((x * 7 + y * 13) % 20);
       }
     }
     this.source.update(rows[0] * fw, (rows[1] + 1) * fw);

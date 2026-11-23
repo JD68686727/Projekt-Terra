@@ -207,7 +207,7 @@ export class Game {
     this.scene.addChild(this.backdrop.container);
     this.scene.addChild(this.terrain.container);
     this.fog = new FogMap(this.world.width, this.world.height);
-    this.fog.revealSky((x) => surfaceY(x, this.world), 6);
+    this.fog.revealSky((x) => surfaceY(x, this.world), 10);
     this.fog.reveal(this.drone.x, this.drone.y, 30);
     this.fogRenderer = new FogRenderer(this.fog, this.world.seed);
     this.scene.addChild(this.fogRenderer.sprite);
@@ -430,7 +430,7 @@ export class Game {
       this.sfx.blast();
     }
     if (click && this.weapon === 'nano') {
-      if (Math.hypot(this.aim.x - this.drone.x, this.aim.y - this.drone.y) <= 90) {
+      if (Math.hypot(this.aim.x - this.drone.x, this.aim.y - this.drone.y) <= 130) {
         this.nano.deploy(this.aim.x, this.aim.y);
         this.sfx.purchase();
       } else this.sfx.denied();
@@ -471,7 +471,7 @@ export class Game {
     this.fogTimer -= h;
     if (this.fogTimer <= 0) {
       this.fogTimer = 0.1;
-      this.fog.reveal(this.drone.x, this.drone.y, 26);
+      this.fog.reveal(this.drone.x, this.drone.y, 46);
       for (const e of this.emitters) this.fog.reveal(e.x, e.y, 14);
       if (this.nano.active) this.fog.reveal(this.nano.anchorX, this.nano.anchorY, this.nano.stats.leash + 4);
     }

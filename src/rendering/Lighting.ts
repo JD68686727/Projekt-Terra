@@ -11,7 +11,7 @@ export class Lighting {
   private readonly light: Sprite;
   private readonly frame = new Graphics();
   /** Light radius in cells. */
-  radius = 34;
+  radius = 64;
 
   constructor() {
     this.light = new Sprite(Lighting.makeLightTexture());
@@ -47,7 +47,7 @@ export class Lighting {
    * @param bounds visible world rect [x0, y0, x1, y1]
    */
   update(rigX: number, rigY: number, depth: number, bounds: [number, number, number, number]): void {
-    const alpha = Math.min(0.82, Math.max(0, (depth - 15) / 220));
+    const alpha = Math.min(0.6, Math.max(0, (depth - 30) / 260));
     this.container.visible = alpha > 0.01;
     if (!this.container.visible) return;
     this.container.alpha = alpha;
