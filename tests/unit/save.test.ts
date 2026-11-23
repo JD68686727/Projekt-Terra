@@ -26,6 +26,7 @@ function makeSave(world: World, over: Partial<SaveData> = {}): SaveData {
     prestige: 0,
     vaults: [false, true],
     nano: null,
+    fog: null,
     chunks: serializeChunks(world),
     ...over,
   };
@@ -110,7 +111,7 @@ describe('validateSave', () => {
   });
 
   const bad: [string, (d: any) => void][] = [
-    ['wrong version', (d) => { d.version = 1; }],
+    ['wrong version', (d) => { d.version = 2; }],
     ['newer version', (d) => { d.version = 99; }],
     ['bad RLE sum', (d) => { d.chunks[0].mat = Uint8Array.from([1, 10]); }],
     ['zero run', (d) => { d.chunks[0].mat = Uint8Array.from([1, 0, 1, 255]); }],
@@ -264,7 +265,7 @@ describe('save migration v1 → v2', () => {
   it('upgrades a v1 save with defaults and validates', () => {
     const w = new World(64, 64, 3);
     const v2 = makeSave(w);
-    const { prestige: _p, vaults: _v, nano: _n, ...rest } = v2;
+    const { prestige: _p, vaults: _v, nano: _n, fog: _f, ...rest } = v2;
     const v1 = { ...rest, version: 1 };
     expect(validateSave(v1)).toBe(false);
     const m = migrateSave(v1);
@@ -278,5 +279,20 @@ describe('save migration v1 → v2', () => {
     expect(validateSave(makeSave(w, { prestige: -1 }))).toBe(false);
     expect(validateSave(makeSave(w, { prestige: 1.5 }))).toBe(false);
     expect(validateSave(makeSave(w, { nano: { x: NaN, y: 1 } }))).toBe(false);
+  });
+});
+
+describe('save migration v2 → v3 (fog)', () => {
+  it('adds fog: null to v2 saves and validates fog RLE size', () => {
+    const w = new World(64, 64, 3);
+    const v3 = makeSave(w);
+    const { fog: _f, ...rest } = v3;
+    const v2 = { ...rest, version: 2 };
+    expect(validateSave(v2)).toBe(false);
+    const m = migrateSave(v2) as SaveData;
+    expect(validateSave(m)).toBe(true);
+    expect(m.fog).toBeNull();
+    expect(validateSave(makeSave(w, { fog: Uint8Array.from([0, 255, 0, 1]) }))).toBe(true); // 16×16 = 256
+    expect(validateSave(makeSave(w, { fog: Uint8Array.from([0, 200]) }))).toBe(false);
   });
 });

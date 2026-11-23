@@ -10,6 +10,8 @@ import { TerrainRenderer } from '../rendering/TerrainRenderer';
 import { Camera } from '../rendering/Camera';
 import { Lighting } from '../rendering/Lighting';
 import { Backdrop } from '../rendering/Backdrop';
+import { FogMap } from '../world/FogMap';
+import { FogRenderer } from '../rendering/FogRenderer';
 import { AdvancedBloomFilter } from 'pixi-filters';
 import { Particles } from '../effects/Particles';
 import { CuttingLaser, BeamResult } from '../weapons/CuttingLaser';
@@ -125,6 +127,9 @@ export class Game {
   private readonly emitterGfx = new Graphics();
   private readonly lighting = new Lighting();
   private readonly backdrop: Backdrop;
+  readonly fog: FogMap;
+  private readonly fogRenderer: FogRenderer;
+  private fogTimer = 0;
   private dustTimer = 0;
   private shake = 0;
   private destroyedThisTick = 0;
@@ -201,6 +206,11 @@ export class Game {
     this.backdrop = new Backdrop(this.world.width, this.world.height, this.world.seed);
     this.scene.addChild(this.backdrop.container);
     this.scene.addChild(this.terrain.container);
+    this.fog = new FogMap(this.world.width, this.world.height);
+    this.fog.revealSky((x) => surfaceY(x, this.world), 6);
+    this.fog.reveal(this.drone.x, this.drone.y, 30);
+    this.fogRenderer = new FogRenderer(this.fog, this.world.seed);
+    this.scene.addChild(this.fogRenderer.sprite);
     // Everything after the lighting layer reads as emitting light.
     this.scene.addChild(this.lighting.container);
     this.scene.addChild(this.particles.container);
@@ -336,6 +346,7 @@ export class Game {
     this.backdrop.update(dt, this.camera.x, this.camera.y);
     this.lighting.update(this.drone.x, this.drone.y, this.drone.y - surfaceY(Math.floor(this.drone.x), this.world), [x0, y0, x1, y1]);
     this.terrain.update();
+    this.fogRenderer.update();
     this.drawDrone();
     this.drawBeam();
     this.drawWaves();
@@ -457,6 +468,13 @@ export class Game {
     }
     this.reactions.update();
     this.emitDust(h);
+    this.fogTimer -= h;
+    if (this.fogTimer <= 0) {
+      this.fogTimer = 0.1;
+      this.fog.reveal(this.drone.x, this.drone.y, 26);
+      for (const e of this.emitters) this.fog.reveal(e.x, e.y, 14);
+      if (this.nano.active) this.fog.reveal(this.nano.anchorX, this.nano.anchorY, this.nano.stats.leash + 4);
+    }
     this.particles.update(h);
     if (this.destroyedThisTick > 12) this.shake = Math.min(3, this.shake + this.destroyedThisTick * 0.004);
   }
@@ -570,6 +588,7 @@ export class Game {
       prestige: this.progression.prestige,
       vaults: this.vaults.map((v) => v.found),
       nano: this.nano.active ? { x: this.nano.anchorX, y: this.nano.anchorY } : null,
+      fog: this.fog.encode(),
       chunks: serializeChunks(this.world),
     };
   }
@@ -603,6 +622,8 @@ export class Game {
     const es = p.emitterStats();
     for (const e of d.emitters.slice(0, p.maxEmitters())) this.emitters.push(new Emitter(e.x, e.y, es));
     if (d.nano && p.nanoUnlocked()) this.nano.deploy(d.nano.x, d.nano.y);
+    // v2 saves have no fog: reveal around the restored rig (sky stays revealed).
+    if (!d.fog || !this.fog.decode(d.fog)) this.fog.reveal(this.drone.x, this.drone.y, 30);
   }
 
   private drawEmitters(): void {

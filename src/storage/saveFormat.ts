@@ -1,7 +1,8 @@
+import { FOG_CELL, fogRleValid } from '../world/FogMap';
 import { CHUNK_SIZE, type Chunk, type World } from '../world/World';
 import { MATERIALS } from '../world/materials';
 
-export const SAVE_VERSION = 2;
+export const SAVE_VERSION = 3;
 
 const CELLS = CHUNK_SIZE * CHUNK_SIZE;
 const MAX_DIM = 8192;
@@ -32,6 +33,8 @@ export interface SaveData {
   vaults: boolean[];
   /** v2: deployed nano swarm anchor, or null. */
   nano: { x: number; y: number } | null;
+  /** v3: fog of war, RLE of revealed flags (FogMap.encode), or null. */
+  fog: Uint8Array | null;
   chunks: SavedChunk[];
 }
 
@@ -149,6 +152,11 @@ export function validateSave(data: unknown): data is SaveData {
   if (!fin(data.prestige) || (data.prestige as number) < 0 || !Number.isInteger(data.prestige)) return false;
   if (!Array.isArray(data.vaults) || data.vaults.length > 64 || data.vaults.some((v) => typeof v !== 'boolean')) return false;
   if (data.nano !== null && (!isObj(data.nano) || !fin(data.nano.x) || !fin(data.nano.y))) return false;
+  if (data.fog !== null) {
+    if (!(data.fog instanceof Uint8Array)) return false;
+    const total = Math.ceil((data.width as number) / FOG_CELL) * Math.ceil((data.height as number) / FOG_CELL);
+    if (!fogRleValid(data.fog, total)) return false;
+  }
   if (!Array.isArray(data.chunks)) return false;
   const maxIndex = ((width as number) / CHUNK_SIZE) * ((height as number) / CHUNK_SIZE);
   const seen = new Set<number>();
@@ -164,5 +172,6 @@ export function migrateSave(data: unknown): unknown {
   if (!isObj(data)) return data;
   let d: Record<string, unknown> = data;
   if (d.version === 1) d = { ...d, version: 2, prestige: 0, vaults: [], nano: null };
+  if (d.version === 2) d = { ...d, version: 3, fog: null };
   return d;
 }
