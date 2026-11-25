@@ -18,6 +18,8 @@ export const PALETTES: Record<number, Palette> = {
   [Mat.ResonanceCrystal]: [0x0a3a52, 0x11698a, 0x1ca6c6, 0x58e3f6, 0xd6ffff],
   [Mat.UnstableOre]: [0x2a1712, 0x43231a, 0xa8401a, 0xff8a2a, 0xffd37a],
   [Mat.Glutstein]: [0x2a0810, 0x5c1218, 0xb82a26, 0xff5a3c, 0xffd0a8],
+  [Mat.Emerald]: [0x052c1a, 0x0c5a32, 0x1a9a5c, 0x46dc8c, 0xc4ffe0],
+  [Mat.FrostCrystal]: [0x16304a, 0x3a6c98, 0x84c4ec, 0xd0f2ff, 0xffffff],
   [Mat.GoldVein]: [0x4a3410, 0x8a6418, 0xd2a228, 0xf6d457, 0xfff6c0],
   [Mat.TitaniumMatrix]: [0x2a303e, 0x454f66, 0x63718c, 0x8fa0ba, 0xd2deec],
   [Mat.CoreMaterial]: [0x2c0740, 0x5a1080, 0x962cc8, 0xd277ff, 0xffd6ff],
@@ -81,6 +83,7 @@ export function subStep(m: Mat, sx: number, sy: number, gx: number, gy: number, 
       if (hash01(sx, sy, seed ^ 0x63) > 0.996) s = 4; // mineral sparkle
       return s;
     }
+    case Mat.Emerald:
     case Mat.ResonanceCrystal: {
       // Large facets with crisp boundaries, shine streaks and sparkles.
       const cell = hash01(gx >> 1, gy >> 1, seed ^ 0x71);
@@ -97,6 +100,13 @@ export function subStep(m: Mat, sx: number, sy: number, gx: number, gy: number, 
       if (g > 0.82) return 1;
       if (g > 0.7) return 2;
       return 3;
+    }
+    case Mat.FrostCrystal: {
+      // Brittle ice shards: long diagonal facets with white glints.
+      const shard = ((sx * 2 - sy + 1_000_000) >> 2) + Math.floor(hash01(gx >> 2, gy >> 2, seed ^ 0xc1) * 5);
+      if ((sx + sy * 3 + 1_000_000) % (13 * D) < 2) return 4;
+      if (hash01(sx, sy, seed ^ 0xc2) > 0.985) return 4;
+      return 1 + (shard & 1) + (hash01(sx >> 1, sy >> 1, seed ^ 0xc3) > 0.7 ? 1 : 0);
     }
     case Mat.Glutstein: {
       // Cracked ember stone: dark crust with glowing fissures and flying sparks.

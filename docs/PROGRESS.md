@@ -121,3 +121,8 @@ Next: M2 (see docs/TASKS.md).
 - First measurement showed Echo worlds got *shorter* (Echo 1: 13 min vs 39): prestige +50 % MP compounded, and Glutstein added on top of Unstable Ore (blast chains). Fixes: prestige MP +25 %/Echo; Glutstein *replaces* Unstable Ore in the Rote Wüste (chance ×1.2); Gold value 28; core shields scale +50 % per Echo (`SHIELD_PER_ECHO`) with tiers `[1,3,6,10,16,26]`.
 - Bot minutes (seed 1337, greedy upgrades, spends Echo fragments): Echo 0–5 = 39, 40, 59, 77, 62, 77. Bot = manual-style play, not the Autopilot; real playtime will differ.
 - `Game` now takes `opts.echo` (terrain/shield generation level); older saves (generator < 3) keep the old terrain.
+
+## Biome ores, part 2
+- `Emerald` (9, Dschungel): replaces crystal veins, conducts resonance chains (`isResonant`, also for fracture charge), 55 durability / 16 MP, tougher rock (dense threshold 0.28). `FrostCrystal` (10, Eiswelt): replaces Unstable Ore, 25 durability / 9 MP, shatters in a 1.5× wider, 0.55× weaker blast (`Reactions` blast kind).
+- Bot minutes Echo 0–5 (seed 1337): 39, 40, 55, 69, 62, 77 (Echo 4 / Gold dips slightly below Echo 3; not tuned further). Guard test windows still hold.
+- Not done: biome-specific vision/scanner effects (Eiswelt idea), per-biome Echo upgrade, Autopilot time per Echo world.

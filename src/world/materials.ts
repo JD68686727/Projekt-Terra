@@ -11,6 +11,10 @@ export const enum Mat {
   Glutstein = 7,
   /** Echo biome ore (Goldene Kruste): very valuable, in hard rock. */
   GoldVein = 8,
+  /** Echo biome ore (Dschungel): conducts resonance like a crystal, tougher, worth more. */
+  Emerald = 9,
+  /** Echo biome ore (Eiswelt): brittle, shatters in a wide, weaker blast. */
+  FrostCrystal = 10,
 }
 
 export interface MaterialDef {
@@ -38,9 +42,16 @@ export const MATERIALS: readonly MaterialDef[] = [
   { id: Mat.CoreMaterial, name: 'Core Material', durability: 20000, value: 50, color: 0xd040ff, variation: 0.3, emissive: true },
   { id: Mat.Glutstein, name: 'Glutstein', durability: 35, value: 14, color: 0xe03a30, variation: 0.22, emissive: true },
   { id: Mat.GoldVein, name: 'Gold Vein', durability: 90, value: 28, color: 0xf2c33c, variation: 0.18, emissive: false },
+  { id: Mat.Emerald, name: 'Emerald Root', durability: 55, value: 16, color: 0x2fd47a, variation: 0.25, emissive: true },
+  { id: Mat.FrostCrystal, name: 'Frost Crystal', durability: 25, value: 9, color: 0x9fdcff, variation: 0.2, emissive: true },
 ];
 
 export const MATERIAL_COUNT = MATERIALS.length;
+
+/** Cells that conduct resonance chains. */
+export function isResonant(m: number): boolean {
+  return m === Mat.ResonanceCrystal || m === Mat.Emerald;
+}
 
 export function isSolid(m: number): boolean {
   return m !== Mat.Air;

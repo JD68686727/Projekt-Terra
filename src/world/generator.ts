@@ -92,21 +92,21 @@ function baseMaterial(x: number, y: number, height: number, seed: number, surfac
   const wx = x + (valueNoise(x / 23, y / 23, seed ^ 0x7a1) - 0.5) * 26;
   const wy = y + (valueNoise(x / 23, y / 23, seed ^ 0x7a2) - 0.5) * 26;
   const cv = 1 - Math.abs(fbm(wx / 34, wy / 26, seed ^ 0xc4157a1, 3) * 2 - 1);
-  // Biome 1 (Rote Wüste): crystals are rarer. Biome 4 (Goldene Kruste): harder rock.
+  // Biome 1 (Rote Wüste): crystals are rarer. Biome 2 (Dschungel): crystal veins are Emerald Root, tougher rock. Biome 4 (Goldene Kruste): harder rock.
   const crystalCut = biome === 1 ? 0.992 : 0.985;
-  if (cv > crystalCut - depth * 0.02 && valueNoise(x / 45, y / 45, seed ^ 0xc41) > 0.36) return Mat.ResonanceCrystal;
+  if (cv > crystalCut - depth * 0.02 && valueNoise(x / 45, y / 45, seed ^ 0xc41) > 0.36) return biome === 2 ? Mat.Emerald : Mat.ResonanceCrystal;
   if (biome === 4) {
     const gv = 1 - Math.abs(fbm(wx / 24, wy / 30, seed ^ 0x601d, 2) * 2 - 1);
     if (gv > 0.978 - depth * 0.015 && valueNoise(x / 34, y / 34, seed ^ 0x6e1) > 0.4) return Mat.GoldVein;
   }
   const ov = 1 - Math.abs(fbm(wy / 20, wx / 28, seed ^ 0x0e0e, 2) * 2 - 1);
-  // Biome 1 (Rote Wüste): the explosive veins are Glutstein instead of Unstable Ore.
-  const explosive = biome === 1 ? Mat.Glutstein : Mat.UnstableOre;
+  // Biome 1 (Rote Wüste): Glutstein; biome 3 (Eiswelt): Frost Crystal; both replace Unstable Ore.
+  const explosive = biome === 1 ? Mat.Glutstein : biome === 3 ? Mat.FrostCrystal : Mat.UnstableOre;
   if (ov > 0.984 - depth * 0.015 && valueNoise(x / 30, y / 30, seed ^ 0x0e1) > 0.42) return explosive;
   // Ore nodules strung along a few veins.
   if (ov > 0.93 && hash01(x >> 1, y >> 1, seed ^ 0x0e2) > 0.95) return explosive;
   const t = depth + (hash01(x, y, seed ^ 0xd3) - 0.5) * 0.15 + (fbm(x / 30, y / 30, seed ^ 0xde, 2) - 0.5) * 0.4;
-  return t > (biome === 4 ? 0.18 : 0.35) ? Mat.DenseRock : Mat.Stone;
+  return t > (biome === 4 ? 0.18 : biome === 2 ? 0.28 : 0.35) ? Mat.DenseRock : Mat.Stone;
 }
 
 export interface VaultSite {

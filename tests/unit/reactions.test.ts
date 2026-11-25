@@ -108,3 +108,39 @@ describe('Glutstein', () => {
     expect(hits(Mat.Glutstein)).toBeGreaterThan(hits(Mat.UnstableOre) * 1.1);
   });
 });
+
+describe('Emerald and Frost Crystal', () => {
+  it('Emerald conducts resonance like a crystal (and links to crystals)', () => {
+    const w = new World(64, 64, 1);
+    const r = setup(w);
+    for (let x = 10; x < 15; x++) w.setMat(x, 10, Mat.Emerald);
+    w.setMat(15, 10, Mat.ResonanceCrystal);
+    w.damage(10, 10, 1);
+    for (let i = 0; i < 12; i++) r.update();
+    expect(w.getMat(14, 10)).toBe(Mat.Air);
+    expect(w.getMat(15, 10)).toBe(Mat.Air);
+    expect(r.resonated).toBeGreaterThanOrEqual(5);
+  });
+  it('Frost Crystal shatters wider but weaker than an ore blast', () => {
+    const reach = (mat: Mat) => {
+      const w = new World(64, 64, 1);
+      const r = setup(w, { resonanceDepth: 6, oreChance: 1, oreRadius: 3, oreDamage: 60 });
+      for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) w.setMat(x, y, Mat.Stone, false);
+      w.setMat(32, 32, mat);
+      w.damage(32, 32, 9999);
+      for (let i = 0; i < 6; i++) r.update();
+      let far = 0;
+      let near = 0;
+      for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) {
+        if (w.getMat(x, y) !== Mat.Air) continue;
+        const d = Math.hypot(x - 32, y - 32);
+        if (d > 3.2) far++;
+        else near++;
+      }
+      return { far, near };
+    };
+    const frost = reach(Mat.FrostCrystal);
+    const ore = reach(Mat.UnstableOre);
+    expect(frost.far).toBeGreaterThan(ore.far);
+  });
+});

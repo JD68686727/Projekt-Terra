@@ -174,13 +174,21 @@ describe('biome ores', () => {
     expect(red[Mat.ResonanceCrystal]).toBeLessThan(e0[Mat.ResonanceCrystal]);
     expect(gold[Mat.GoldVein]).toBeGreaterThan(30);
     expect(gold[Mat.DenseRock]).toBeGreaterThan(e0[Mat.DenseRock]);
-    // Dschungel / Eiswelt do not have biome ores yet.
-    expect(count(2)[Mat.Glutstein] + count(3)[Mat.GoldVein]).toBe(0);
+    // Dschungel: crystal veins are Emerald Root (tougher rock); Eiswelt: Frost Crystal instead of Unstable Ore.
+    const jungle = count(2);
+    const ice = count(3);
+    expect(jungle[Mat.Emerald]).toBeGreaterThan(20);
+    expect(jungle[Mat.DenseRock]).toBeGreaterThan(e0[Mat.DenseRock]);
+    expect(ice[Mat.FrostCrystal]).toBeGreaterThan(20);
+    expect(ice[Mat.UnstableOre]).toBeLessThan(e0[Mat.UnstableOre] * 0.3);
+    expect(jungle[Mat.Glutstein] + ice[Mat.GoldVein] + jungle[Mat.FrostCrystal]).toBe(0);
   });
   it('biome ores are not overabundant', () => {
     const solid = (c: number[]) => c.reduce((a, b) => a + b, 0) - c[Mat.Air];
     expect(count(1)[Mat.Glutstein] / solid(count(1))).toBeLessThan(0.06);
     expect(count(4)[Mat.GoldVein] / solid(count(4))).toBeLessThan(0.06);
+    expect(count(2)[Mat.Emerald] / solid(count(2))).toBeLessThan(0.06);
+    expect(count(3)[Mat.FrostCrystal] / solid(count(3))).toBeLessThan(0.06);
   });
   it('biome count matches the renderer biomes', async () => {
     const { BIOMES } = await import('../../src/rendering/biome');

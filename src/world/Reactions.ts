@@ -1,5 +1,5 @@
 import { World } from './World';
-import { Mat } from './materials';
+import { Mat, isResonant } from './materials';
 
 export interface ReactionStats {
   /** Max BFS depth a resonance chain travels from its trigger cell. */
@@ -52,6 +52,8 @@ export class Reactions {
   private qLen = 0;
   private readonly bx = new Float32Array(BLAST_QUEUE_CAP);
   private readonly by = new Float32Array(BLAST_QUEUE_CAP);
+  /** 0 = ore blast, 1 = frost shatter (wider, weaker). */
+  private readonly bk = new Uint8Array(BLAST_QUEUE_CAP);
   private bHead = 0;
   private bLen = 0;
   private seq = 0;
@@ -70,13 +72,15 @@ export class Reactions {
 
   /** Called for every damaged (non-air) cell. */
   onHit(x: number, y: number, m: Mat): void {
-    if (m === Mat.ResonanceCrystal) this.charge(x, y, 0);
+    if (isResonant(m)) this.charge(x, y, 0);
   }
 
   /** Called for every destroyed cell. */
   onDestroyed(x: number, y: number, m: Mat): void {
     if (m === Mat.UnstableOre && this.chance() < this.stats.oreChance) this.queueBlast(x + 0.5, y + 0.5);
     // Glutstein sparks more reliably than Unstable Ore (Rote Wüste: Zündschnur).
+    // Frost Crystal shatters in a wide but weaker blast (Eiswelt).
+    else if (m === Mat.FrostCrystal && this.chance() < Math.min(1, this.stats.oreChance * 0.9)) this.queueBlast(x + 0.5, y + 0.5, 1);
     else if (m === Mat.Glutstein && this.chance() < Math.min(1, this.stats.oreChance * 1.2)) this.queueBlast(x + 0.5, y + 0.5);
   }
 
@@ -91,11 +95,12 @@ export class Reactions {
     this.qLen++;
   }
 
-  private queueBlast(x: number, y: number): void {
+  private queueBlast(x: number, y: number, kind = 0): void {
     if (this.bLen >= BLAST_QUEUE_CAP) return;
     const slot = (this.bHead + this.bLen) % BLAST_QUEUE_CAP;
     this.bx[slot] = x;
     this.by[slot] = y;
+    this.bk[slot] = kind;
     this.bLen++;
   }
 
@@ -118,7 +123,7 @@ export class Reactions {
       const y = (i - x) / W;
       // The trigger cell may already have been destroyed by the weapon that
       // charged it; the charge still propagates to its neighbours.
-      if (w.getMat(x, y) === Mat.ResonanceCrystal) {
+      if (isResonant(w.getMat(x, y))) {
         w.damage(x, y, 0xffff);
         this.resonated++;
         this.events.onResonance?.(x, y, d);
@@ -130,18 +135,21 @@ export class Reactions {
         const dir = (j + r) & 3;
         const nx = x + (dir === 0 ? 1 : dir === 1 ? -1 : 0);
         const ny = y + (dir === 2 ? 1 : dir === 3 ? -1 : 0);
-        if (w.getMat(nx, ny) === Mat.ResonanceCrystal) this.charge(nx, ny, d + 1);
+        if (isResonant(w.getMat(nx, ny))) this.charge(nx, ny, d + 1);
       }
     }
   }
 
   private processBlasts(): void {
     const n = Math.min(this.bLen, BLAST_BUDGET);
-    const { oreRadius: R, oreDamage: D } = this.stats;
-    const r2 = R * R;
+    const { oreRadius: R0, oreDamage: D0 } = this.stats;
     for (let k = 0; k < n; k++) {
       const cx = this.bx[this.bHead];
       const cy = this.by[this.bHead];
+      const frost = this.bk[this.bHead] === 1;
+      const R = frost ? R0 * 1.5 : R0;
+      const D = frost ? D0 * 0.55 : D0;
+      const r2 = R * R;
       this.bHead = (this.bHead + 1) % BLAST_QUEUE_CAP;
       this.bLen--;
       this.blasts++;

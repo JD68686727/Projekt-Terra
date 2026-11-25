@@ -1,5 +1,5 @@
 import { World } from '../world/World';
-import { Mat } from '../world/materials';
+import { Mat, isResonant } from '../world/materials';
 import { traverseGrid } from '../world/raycast';
 import { hash01 } from '../world/rng';
 
@@ -143,7 +143,7 @@ export class FractureCharge {
       w.damage(x, y, Math.round(this.stats.damage * e));
       // Deterministic per-cell jitter makes cracks irregular instead of a diamond.
       const jitter = 0.35 + 1.3 * hash01(x, y, w.seed ^ 0xf4ac);
-      const cost = (m === Mat.ResonanceCrystal ? this.stats.decay * 0.15 : this.stats.decay) * jitter;
+      const cost = (isResonant(m) ? this.stats.decay * 0.15 : this.stats.decay) * jitter;
       const ne = e - cost;
       if (ne <= 0.05) continue;
       // 8-connected spread (diagonals cost √2) gives round fronts; a few
@@ -156,7 +156,7 @@ export class FractureCharge {
         const tm = w.getMat(tx, ty);
         if (tm === Mat.Air) continue;
         // Crystal always conducts; only rock branches may die off.
-        if (tm !== Mat.ResonanceCrystal && hash01(tx, ty, w.seed ^ 0xb7a) < 0.18) continue;
+        if (!isResonant(tm) && hash01(tx, ty, w.seed ^ 0xb7a) < 0.18) continue;
         this.enqueue(tx, ty, k < 4 ? ne : e - cost * 1.414);
       }
     }
