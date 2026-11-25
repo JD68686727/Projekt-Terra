@@ -6,6 +6,7 @@ import { Ui } from './ui/Ui';
 import { QUALITY_PRESETS, loadSettings } from './ui/settings';
 import { createPlatformAdapter } from './platform/PlatformAdapter';
 import { GAME_TITLE, CORE_COUNT, coreCountFor, DEFAULT_WORLD_WIDTH, DEFAULT_WORLD_HEIGHT } from './config/meta';
+import { biomeFor } from './rendering/biome';
 import { generateMaterialsAsync } from './world/generateAsync';
 import { GENERATOR_VERSION } from './world/generator';
 import { createSaveStore, SaveStore } from './storage/SaveStore';
@@ -21,13 +22,14 @@ declare global {
 
 const AUTOSAVE_MS = 30_000;
 
-function urlParams(): { seed: number | null; size: number | null } {
+function urlParams(): { seed: number | null; size: number | null; echo: number } {
   const q = new URLSearchParams(location.search);
   const seed = Number(q.get('seed')) || null;
   const raw = Number(q.get('size'));
   // Size must be a multiple of the 64-cell chunk size.
   const size = raw ? Math.min(2048, Math.max(128, Math.round(raw / 64) * 64)) : null;
-  return { seed, size };
+  const echo = Math.min(20, Math.max(0, Math.floor(Number(q.get('echo')) || 0)));
+  return { seed, size, echo };
 }
 
 function randomSeed(): number {
@@ -150,6 +152,9 @@ async function boot(): Promise<void> {
     loadingTitle.textContent = 'Welt wird erzeugt…';
     loading.classList.remove('hidden');
     progress(0);
+    // Loaded saves keep their Echo level (biome + core count); `?echo=N` jumps a new game to that Echo (testing).
+    if (data) prestige = data.prestige;
+    else if (prestige === 0) prestige = url.echo;
     const cores = data ? (data.cores ?? CORE_COUNT) : coreCountFor(prestige);
     const mats = await generateMaterialsAsync({ width, height, seed, cores }, (p) => progress(p * 0.9));
     const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores, carry: data ? undefined : carry, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
@@ -174,7 +179,7 @@ async function boot(): Promise<void> {
       if (done < g.cores.length) ui.toast(`Resonanzkern ${done}/${g.cores.length} zerstört! Der Scanner zeigt den nächsten.`, false, 5000);
     };
     g.onVault = (rf, mp) => ui.toast(`Geheimkammer entdeckt! +${rf} RF, +${mp.toLocaleString('de-DE')} MP`, false, 5000);
-    if (!data) ui.toast(`ZIEL: Zerstöre alle ${g.cores.length} Resonanzkerne${prestige ? ` (Echo ${prestige})` : ''}. Der Scanner zeigt den Weg.`, false, 7000);
+    if (!data) ui.toast(`ZIEL: Zerstöre alle ${g.cores.length} Resonanzkerne${prestige ? ` (Echo ${prestige} · ${biomeFor(prestige).name})` : ''}. Der Scanner zeigt den Weg.`, false, 7000);
     g.onVictory = () => {
       blockingOverlay = true;
       applyPause();

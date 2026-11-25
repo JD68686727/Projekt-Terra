@@ -484,3 +484,13 @@ test.describe('touch device', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test('echo worlds show their biome name and get more cores', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=7&size=512&echo=1');
+  await expect(page.locator('#hud-goal')).toContainText('ROTE WÜSTE');
+  await expect(page.locator('#hud-goal')).toContainText('0/4');
+  expect(await page.evaluate(() => window.__game!.progression.prestige)).toBe(1);
+  expect(await page.evaluate(() => window.__game!.cores.length)).toBe(4);
+  expect(errors).toEqual([]);
+});

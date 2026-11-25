@@ -5,6 +5,7 @@ import { Canvas, canvas, haze, hazeBand } from './backdrop/painters';
 import { Pal5, boulder, formation, softMountains } from './art/rock';
 import { Pal6, glowPlant, shrub, tree } from './art/foliage';
 import { Planet } from './art/Planet';
+import { shiftPixels } from './biome';
 
 /**
  * Sky & horizon, drawn at the same density as the HD terrain (ART art
@@ -20,7 +21,11 @@ const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const bayer = (x: number, y: number) => BAYER[((y & 3) << 2) | (x & 3)] / 16;
 
 /** `smooth` = linear filtering, so slow parallax moves in sub-pixel steps instead of 1 px jumps (distant layers only). */
+/** Hue shift of the current biome, applied to every backdrop texture. */
+let hueShift = 0;
+
 function tex(w: number, h: number, px: Uint8Array, smooth = false): Texture {
+  shiftPixels(px, hueShift);
   return new Texture({ source: new BufferImageSource({ resource: px, width: w, height: h, scaleMode: smooth ? 'linear' : 'nearest', autoGenerateMipmaps: false }) });
 }
 
@@ -50,14 +55,15 @@ export class Backdrop {
   private planetArt!: Planet;
   private readonly horizon: number;
 
-  constructor(private readonly width: number, height: number, private readonly seed: number) {
+  constructor(private readonly width: number, height: number, private readonly seed: number, sky = 0) {
+    hueShift = sky;
     this.horizon = height * SKY_FRACTION;
     const top = -160;
     const skyH = Math.ceil(this.horizon - top + 80);
     this.container.addChild(this.sky(top, skyH), this.far, this.mid, this.near, this.front);
     this.far.addChild(this.nebula(top));
     this.buildStars();
-    this.planetArt = new Planet(24 * ART, this.seed);
+    this.planetArt = new Planet(24 * ART, this.seed, sky);
     const ps = this.planetArt.sprite;
     ps.scale.set(1 / ART);
     ps.x = this.width / 2 + 34 + hash01(1, 99, this.seed) * 20;

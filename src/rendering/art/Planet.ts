@@ -1,5 +1,6 @@
 import { BufferImageSource, Sprite, Texture } from 'pixi.js';
 import { hash01, valueNoise } from '../../world/rng';
+import { shiftRgb } from '../biome';
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const bayer = (x: number, y: number) => BAYER[((y & 3) << 2) | (x & 3)] / 16;
@@ -37,7 +38,10 @@ export class Planet {
   private static readonly RING_N = 1024;
   private static readonly PAL = [0x1a0b2a, 0x2e1446, 0x481f58, 0x652c6e, 0x84417e, 0xa45e90, 0xc283a4];
 
-  constructor(r: number, seed: number) {
+  private readonly pal: number[];
+
+  constructor(r: number, seed: number, hue = 0) {
+    this.pal = Planet.PAL.map((c) => shiftRgb(c, hue));
     const ringA = r * 1.7;
     const size = Math.ceil(ringA * 2 + 8);
     this.size = size;
@@ -119,7 +123,7 @@ export class Planet {
   private redraw(): void {
     const { size, px } = this;
     const MW = Planet.MAP_W;
-    const pal = Planet.PAL;
+    const pal = this.pal;
     const RN = Planet.RING_N;
     const lo = this.lonOffset;
     const ro = this.ringOffset;

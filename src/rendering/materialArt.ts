@@ -8,6 +8,8 @@ import { hash01, valueNoise } from '../world/rng';
  * texture data. Palettes have 5 steps: 0 = deepest shadow … 4 = highlight.
  */
 
+import { Biome, BACK_L, DENSE_L, MOSS_L, STONE_L, ramp } from './biome';
+
 export type Palette = readonly [number, number, number, number, number];
 
 export const PALETTES: Record<number, Palette> = {
@@ -19,10 +21,29 @@ export const PALETTES: Record<number, Palette> = {
   [Mat.CoreMaterial]: [0x2c0740, 0x5a1080, 0x962cc8, 0xd277ff, 0xffd6ff],
 };
 
-export const MOSS: Palette = [0x0f332c, 0x1a5444, 0x27825c, 0x48bd7c, 0x9df0b0];
+export const MOSS: number[] = [0x0f332c, 0x1a5444, 0x27825c, 0x48bd7c, 0x9df0b0];
 export const OUTLINE = 0x0b0a12;
 const FUNGUS = [0x1b6a6a, 0x3ff0d0, 0xb8fff0];
-const BACK: Palette = [0x09080e, 0x0f0e16, 0x15131e, 0x1b1927, 0x242132];
+const BACK: number[] = [0x09080e, 0x0f0e16, 0x15131e, 0x1b1927, 0x242132];
+
+const ORIGINAL = {
+  stone: PALETTES[Mat.Stone],
+  dense: PALETTES[Mat.DenseRock],
+  moss: [...MOSS],
+  back: [...BACK],
+};
+
+/** Recolours the underground for a biome (call before building the renderer). */
+export function applyBiome(b: Biome): void {
+  PALETTES[Mat.Stone] = b.stone ? (ramp(b.stone.h, b.stone.s, STONE_L) as unknown as Palette) : ORIGINAL.stone;
+  PALETTES[Mat.DenseRock] = b.stone ? (ramp(b.stone.h, b.stone.s * 0.8, DENSE_L) as unknown as Palette) : ORIGINAL.dense;
+  const moss = b.moss ? ramp(b.moss.h, b.moss.s, MOSS_L) : ORIGINAL.moss;
+  const back = b.stone ? ramp(b.stone.h, b.stone.s * 0.6, BACK_L) : ORIGINAL.back;
+  for (let i = 0; i < 5; i++) {
+    MOSS[i] = moss[i];
+    BACK[i] = back[i];
+  }
+}
 
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 function bayer(x: number, y: number): number {

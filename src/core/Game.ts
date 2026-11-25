@@ -28,6 +28,8 @@ import { FixedLoop } from './FixedLoop';
 import { BackgroundTicker } from './BackgroundTicker';
 import { Input } from './Input';
 import { Drone } from './Drone';
+import { biomeFor } from '../rendering/biome';
+import { applyBiome } from '../rendering/materialArt';
 
 export interface GameOptions {
   worldWidth: number;
@@ -221,10 +223,12 @@ export class Game {
       },
     };
     this.world.onHit = (x, y, m) => this.reactions.onHit(x, y, m);
+    const biome = biomeFor(this.progression.prestige);
+    applyBiome(biome);
     this.terrain = new TerrainRenderer(this.world, opts.detail ?? 4);
     this.particles = new Particles(opts.particles ?? 900);
 
-    this.backdrop = new Backdrop(this.world.width, this.world.height, this.world.seed);
+    this.backdrop = new Backdrop(this.world.width, this.world.height, this.world.seed, biome.sky);
     this.scene.addChild(this.backdrop.container);
     this.scene.addChild(this.terrain.container);
     this.fog = new FogMap(this.world.width, this.world.height);

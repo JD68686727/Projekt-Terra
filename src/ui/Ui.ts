@@ -1,3 +1,4 @@
+import { biomeFor } from '../rendering/biome';
 import { GAME_SUBTITLE, GAME_TITLE, GAME_VERSION, MAX_CORES } from '../config/meta';
 import type { Game, WeaponId } from '../core/Game';
 import { UPGRADES, UpgradeGroup, UpgradeId } from '../progression/upgrades';
@@ -483,7 +484,7 @@ export class Ui {
       this.handlers.onEchoShop();
     });
     const nextCores = Math.min(MAX_CORES, game.cores.length + 1);
-    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: ${nextCores} KERNE, +50 % MP)`);
+    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: ${biomeFor(game.progression.prestige + 1).name}, ${nextCores} KERNE, +50 % MP)`);
     nw.id = 'btn-new-world';
     nw.addEventListener('click', () => {
       v.classList.add('hidden');
@@ -570,7 +571,7 @@ export class Ui {
     this.goalEl.classList.toggle('done', allDone);
     this.goalEl.textContent = allDone
       ? 'WELT GEBROCHEN – HIER FÜR NÄCHSTE WELT'
-      : `ZIEL: ${coresDone}/${game.cores.length} KERNE ZERSTÖREN${pr.prestige ? ` · ECHO ${pr.prestige}` : ''}`;
+      : `ZIEL: ${coresDone}/${game.cores.length} KERNE ZERSTÖREN${pr.prestige ? ` · ECHO ${pr.prestige} · ${biomeFor(pr.prestige).name}` : ''}`;
     const autoBtn = this.root.querySelector('#btn-auto')!;
     autoBtn.classList.toggle('locked', !pr.autoTargetUnlocked());
     autoBtn.classList.toggle('active', game.autoMode);

@@ -101,3 +101,8 @@ Next: M2 (see docs/TASKS.md).
 - Each Echo adds one core (`coreCountFor`: 3 → max 6) with extra shield tiers `[1,3,6,9,12,16]`; core radius/shell capped. Saves store `cores` (absent = 3).
 - Victory awards Echo fragments (`2 × cores + prestige`). New group ECHO in the upgrade panel (currency `echo`): Echo-Raffinerie (+20 % MP), Echo-Laser (+20 % dmg), Echo-Vorrat (start MP), Echo-Antrieb (+10 % speed), Echo-Resonanz (+25 % RF). Levels + fragments carry into each new world (`Game opts.carry`); saved via `progression.echo` (optional field, no version bump).
 - Tests: 111 unit, 19 e2e (victory test extended: award, shop, carry-over, 4 cores). Not validated: real play balance of 4–6 core worlds (no pacing bot for Echo worlds yet).
+
+## Echo biomes
+- `src/rendering/biome.ts`: 5 biomes cycling by Echo level (ERDE, ROTE WÜSTE, DSCHUNGEL, EISWELT, GOLDENE KRUSTE). Underground palettes (stone, dense rock, moss, cave wall) via HSL ramps (`applyBiome` in materialArt); sky/nebula/ridges/planet hue-rotated (`shiftPixels` in Backdrop `tex()`, planet palette). Ores, crystals, titanium, cores keep their colours. Echo 0 = original look.
+- Biome name shown in goal line, start toast and next-world button. `?echo=N` URL param starts a new game at that Echo (testing). Loaded saves now start with their saved Echo level (biome + core count).
+- Verified visually in Chrome (SwiftShader) for biomes 0–4; 116 unit, 20 e2e green. Not verified: Echo-world loading from a real save (no dedicated test), other browsers/GPUs.
