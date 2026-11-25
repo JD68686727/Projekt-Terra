@@ -333,6 +333,7 @@ export class Game {
   toggleAuto(): boolean {
     if (!this.progression.autoTargetUnlocked()) return false;
     this.autoMode = !this.autoMode;
+    this.apReady = false;
     return true;
   }
 
@@ -560,26 +561,75 @@ export class Game {
     }
   }
 
+  /** Current sweep band of the autopilot (0 = surface layer); for UI/tests. */
+  get autopilotBand(): number {
+    return this.apK;
+  }
+
+  private apReady = false;
+  private apK = 0;
+  private apDir = 1;
+  private apStartX = 0;
+
   /**
-   * Autopilot: head for the nearest core. When the rig's footprint would hit terrain,
-   * hold position and point the laser at the blocking cell (tunnelling). Bounded: one 3x3 probe per tick.
+   * Autopilot: strip-mines layer by layer. It sweeps horizontally along the terrain
+   * contour, one band (BAND_H rows) at a time, and goes one band deeper after each pass.
+   * The sweep window drifts toward the nearest core as it descends; close to a core
+   * it dives straight in. Where terrain blocks the rig it holds position and the laser
+   * cuts the blocking cell. Bounded work: one 3x3 probe per tick.
    */
   private autopilotStep(): void {
     this.apAx = 0;
     this.apAy = 0;
     const c = this.nearestCore();
     if (!c || c.dist < 3) return;
-    const gx = c.dx / c.dist;
-    const gy = c.dy / c.dist;
+    const d = this.drone;
+    const w = this.world;
+    const BAND_H = 7;
+    const HALF_SPAN = 90;
+    if (!this.apReady) {
+      this.apReady = true;
+      this.apStartX = d.x;
+      this.apDir = d.x < w.width / 2 ? 1 : -1;
+      this.apK = Math.max(0, Math.round((d.y - surfaceY(Math.floor(d.x), w)) / BAND_H));
+    }
+    let gx: number;
+    let gy: number;
+    let speed = 1;
+    if (c.dist < 45) {
+      gx = c.dx / c.dist;
+      gy = c.dy / c.dist;
+    } else {
+      const sy = surfaceY(Math.floor(d.x), w);
+      const frac = Math.min(1, Math.max(0, (d.y - sy) / Math.max(1, c.core.site.y - sy)));
+      const cx = this.apStartX + (c.core.site.x - this.apStartX) * frac;
+      const lo = Math.max(4, cx - HALF_SPAN);
+      const hi = Math.min(w.width - 4, cx + HALF_SPAN);
+      if (this.apDir > 0 && d.x >= hi) {
+        this.apDir = -1;
+        this.apK++;
+      } else if (this.apDir < 0 && d.x <= lo) {
+        this.apDir = 1;
+        this.apK++;
+      }
+      const xa = Math.min(w.width - 2, Math.max(2, d.x + this.apDir * 6));
+      const yd = surfaceY(Math.floor(xa), w) + this.apK * BAND_H - 1.5;
+      const dx = xa - d.x;
+      const dy = yd - d.y;
+      const len = Math.hypot(dx, dy) || 1;
+      gx = dx / len;
+      gy = dy / len;
+      // Slow down while the laser is chewing (less so with a stronger laser), so the band is really cleared.
+      if (this.laserOn) speed = Math.min(1, 0.35 + 0.05 * this.progression.level('laserDamage'));
+    }
     this.apActive = true;
     this.apGx = gx;
     this.apGy = gy;
-    const d = this.drone;
     const px = d.x + gx * 1.4;
     const py = d.y + gy * 1.4;
-    if (!d.collides(this.world, px, py)) {
-      this.apAx = gx;
-      this.apAy = gy;
+    if (!d.collides(w, px, py)) {
+      this.apAx = gx * speed;
+      this.apAy = gy * speed;
       return;
     }
     this.apBlocked = true;
@@ -587,7 +637,7 @@ export class Game {
     let best = Infinity;
     for (let y = Math.floor(py - h); y <= Math.floor(py + h); y++) {
       for (let x = Math.floor(px - h); x <= Math.floor(px + h); x++) {
-        if (this.world.getMat(x, y) === Mat.Air) continue;
+        if (w.getMat(x, y) === Mat.Air) continue;
         const dist = Math.hypot(x + 0.5 - d.x, y + 0.5 - d.y);
         if (dist < best) {
           best = dist;

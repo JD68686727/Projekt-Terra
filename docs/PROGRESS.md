@@ -92,3 +92,4 @@ Next: M2 (see docs/TASKS.md).
 - New automation upgrades: **Auto-Pulse** (needs Pulse) and **Auto-Bohrer** (needs Drill), both only active while the autopilot is on.
 - Pacing bots unchanged (they never modelled aim). Tests: +3 e2e (auto laser, autopilot tunnelling, auto pulse/drill); save test now pauses before snapshotting.
 - Pages workflow re-triggered after enabling Pages (Source: GitHub Actions).
+- Autopilot rework (feedback: it dove straight at the core): now strip-mines layer by layer — sweeps horizontally along the terrain contour in 7-row bands, goes one band deeper per pass, the ±90-cell window drifts toward the nearest core, dives straight in within 45 cells. Laser slows the sweep while chewing.

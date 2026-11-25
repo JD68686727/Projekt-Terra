@@ -214,7 +214,7 @@ test('laser aims and fires by itself without mouse input', async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test('autopilot flies toward the nearest core and tunnels through terrain', async ({ page }) => {
+test('autopilot strips terrain layer by layer', async ({ page }) => {
   const errors = collectErrors(page);
   await start(page, URL + '?seed=777');
   await page.evaluate(() => {
@@ -229,11 +229,14 @@ test('autopilot flies toward the nearest core and tunnels through terrain', asyn
   await page.keyboard.press('KeyU');
   await page.keyboard.press('KeyT');
   expect(await page.evaluate(() => window.__game!.autoMode)).toBe(true);
-  const dist = () => page.evaluate(() => window.__game!.nearestCore()!.dist);
-  const d0 = await dist();
-  await page.waitForTimeout(8000);
-  const d1 = await dist();
-  expect(d1).toBeLessThan(d0 - 25);
+  const pos = () => page.evaluate(() => ({ x: window.__game!.drone.x, band: window.__game!.autopilotBand, d: window.__game!.stats.destroyed }));
+  const p0 = await pos();
+  await page.waitForTimeout(7000);
+  const p1 = await pos();
+  // It strips the surface layers sideways instead of diving straight at the core.
+  expect(Math.abs(p1.x - p0.x)).toBeGreaterThan(25);
+  expect(p1.band).toBeLessThanOrEqual(1);
+  expect(p1.d - p0.d).toBeGreaterThan(150);
   // Manual input wins over the autopilot.
   await page.keyboard.down('KeyW');
   await page.waitForTimeout(600);
