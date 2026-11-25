@@ -30,3 +30,9 @@ WASD/arrows fly (the laser aims itself; hold mouse/Space to aim manually or trig
 
 ## Tech
 TypeScript · PixiJS 8 · Vite · Web Worker world generation · IndexedDB saves. Architecture: `docs/ARCHITECTURE.md`. Status: `docs/PROGRESS.md`.
+
+## Play online (GitHub Pages)
+Every push to `main` runs unit tests + build and deploys `dist/` via `.github/workflows/pages.yml`.
+One-time setup: repo **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+URL: `https://jd68686727.github.io/Projekt-Terra/` (the build uses relative paths, so the sub-path works; saves use IndexedDB on that origin).
+Note: Pages sites are publicly reachable even for private repos, and Pages for private repos needs a paid GitHub plan.
