@@ -110,7 +110,7 @@ export class Planet {
         }
       }
     }
-    this.source = new BufferImageSource({ resource: this.px, width: size, height: size, scaleMode: 'nearest', autoGenerateMipmaps: false });
+    this.source = new BufferImageSource({ resource: this.px, width: size, height: size, scaleMode: 'linear', autoGenerateMipmaps: false });
     this.sprite = new Sprite(new Texture({ source: this.source }));
     this.sprite.anchor.set(0.5);
     this.redraw();

@@ -389,7 +389,7 @@ export class Game {
     }
     const [x0, y0, x1, y1] = this.camera.bounds();
     this.terrain.cull(x0, y0, x1, y1);
-    this.backdrop.update(dt, this.camera.x, this.camera.y);
+    this.backdrop.update(dt, this.camera.x, this.camera.y, this.camera.fracX / this.camera.zoom, this.camera.fracY / this.camera.zoom);
     this.lighting.update(this.drone.x, this.drone.y, this.drone.y - surfaceY(Math.floor(this.drone.x), this.world), [x0, y0, x1, y1]);
     this.terrain.update();
     this.fogRenderer.update();

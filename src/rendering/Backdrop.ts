@@ -19,8 +19,9 @@ const RIDGE_PERIOD = 512; // cells; ridges tile horizontally
 const BAYER = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5];
 const bayer = (x: number, y: number) => BAYER[((y & 3) << 2) | (x & 3)] / 16;
 
-function tex(w: number, h: number, px: Uint8Array): Texture {
-  return new Texture({ source: new BufferImageSource({ resource: px, width: w, height: h, scaleMode: 'nearest', autoGenerateMipmaps: false }) });
+/** `smooth` = linear filtering, so slow parallax moves in sub-pixel steps instead of 1 px jumps (distant layers only). */
+function tex(w: number, h: number, px: Uint8Array, smooth = false): Texture {
+  return new Texture({ source: new BufferImageSource({ resource: px, width: w, height: h, scaleMode: smooth ? 'linear' : 'nearest', autoGenerateMipmaps: false }) });
 }
 
 function set(px: Uint8Array, w: number, x: number, y: number, rgb: number, a = 255): void {
@@ -83,7 +84,7 @@ export class Backdrop {
         set(px, w, x, y, mix(stops[i], stops[i + 1], k - i));
       }
     }
-    const s = new TilingSprite({ texture: tex(w, H, px), width: this.width * 3 * ART, height: H });
+    const s = new TilingSprite({ texture: tex(w, H, px, true), width: this.width * 3 * ART, height: H });
     s.scale.set(1 / ART);
     s.x = -this.width;
     s.y = top;
@@ -113,7 +114,7 @@ export class Backdrop {
         set(px, W, x, y, col, Math.min(110, Math.round(q * 90)));
       }
     }
-    const s = new TilingSprite({ texture: tex(W, H, px), width: this.width * 3 * ART, height: H });
+    const s = new TilingSprite({ texture: tex(W, H, px, true), width: this.width * 3 * ART, height: H });
     s.scale.set(1 / ART);
     s.x = -this.width;
     s.y = top + 20;
@@ -159,7 +160,7 @@ export class Backdrop {
         set(px, size, x, y, pal[Math.max(0, Math.min(4, step))]);
       }
     }
-    const s = new Sprite(tex(size, size, px));
+    const s = new Sprite(tex(size, size, px, true));
     s.scale.set(1 / ART);
     s.x = this.width / 2 - 70;
     s.y = this.horizon - 120;
@@ -178,8 +179,8 @@ export class Backdrop {
   private static readonly BARK = [0x140e1c, 0x2a1d36, 0x46324f];
   private static readonly GLOW = [0xb8fff0, 0x3ff0d0];
 
-  private layerSprite(c: Canvas, baseOffsetCells: number): TilingSprite {
-    const s = new TilingSprite({ texture: tex(c.w, c.h, c.px), width: this.width * 3 * ART, height: c.h });
+  private layerSprite(c: Canvas, baseOffsetCells: number, smooth = false): TilingSprite {
+    const s = new TilingSprite({ texture: tex(c.w, c.h, c.px, smooth), width: this.width * 3 * ART, height: c.h });
     s.scale.set(1 / ART);
     s.x = -this.width;
     s.y = this.horizon - c.h / ART + baseOffsetCells;
@@ -191,7 +192,7 @@ export class Backdrop {
     const p = haze(Backdrop.ROCK, Backdrop.HAZE, 0.62);
     softMountains(c, c.h - 2, 92 * ART, [p[1], p[2], p[3], p[4]], this.seed ^ 0xa1);
     hazeBand(c, Math.floor(c.h * 0.45), c.h, Backdrop.HAZE, 200);
-    return this.layerSprite(c, 30);
+    return this.layerSprite(c, 30, true);
   }
 
   /**
@@ -242,12 +243,16 @@ export class Backdrop {
   }
 
   /** Parallax + star twinkle. camX/camY = camera centre in cells. */
-  update(dt: number, camX: number, camY: number): void {
+  /**
+   * `offX/offY` (world units) cancel the pixel-snapping of the scene so the parallax layers
+   * move with the exact camera position rather than in whole-pixel jumps.
+   */
+  update(dt: number, camX: number, camY: number, offX = 0, offY = 0): void {
     this.time += dt;
     this.planetArt.update(dt);
     const place = (c: Container, f: number) => {
-      c.x = (camX - this.width / 2) * (1 - f);
-      c.y = (camY - this.horizon) * (1 - f) * 0.5;
+      c.x = (camX - this.width / 2) * (1 - f) + offX;
+      c.y = (camY - this.horizon) * (1 - f) * 0.5 + offY;
     };
     place(this.far, 0.08);
     place(this.mid, 0.2);

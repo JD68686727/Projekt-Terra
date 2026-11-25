@@ -35,9 +35,19 @@ export class Camera {
     this.y = Math.min(worldH - hh + 8, Math.max(hh - 40, this.y));
   }
 
+  /** Screen-pixel difference between the exact and the pixel-snapped scene position (|v| <= 0.5). */
+  fracX = 0;
+  fracY = 0;
+
   apply(c: Container): void {
     c.scale.set(this.zoom);
-    c.position.set(Math.round(this.viewW / 2 - this.x * this.zoom), Math.round(this.viewH / 2 - this.y * this.zoom));
+    const ex = this.viewW / 2 - this.x * this.zoom;
+    const ey = this.viewH / 2 - this.y * this.zoom;
+    const rx = Math.round(ex);
+    const ry = Math.round(ey);
+    this.fracX = ex - rx;
+    this.fracY = ey - ry;
+    c.position.set(rx, ry);
   }
 
   screenToWorld(sx: number, sy: number, out: { x: number; y: number }): void {
