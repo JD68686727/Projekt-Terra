@@ -503,3 +503,41 @@ test('Echo worlds are deeper', async ({ page }) => {
   expect(await page.evaluate(() => window.__game!.cores.length)).toBe(5);
   expect(errors).toEqual([]);
 });
+
+test('autopilot flies at the last cell of a hollowed-out core', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=1337&echo=3'); // Echo 3: biggest cores (radius 21)
+  const info = await page.evaluate(() => {
+    const g = window.__game! as any;
+    const w = g.world;
+    const core = g.cores[g.cores.length - 1];
+    const s = core.site;
+    // Hollow the core out except for its lowest cell (sits at the rim, well away from the centre).
+    let keep: { x: number; y: number } | null = null;
+    for (let y = s.y - s.radius - 1; y <= s.y + s.radius + 1; y++)
+      for (let x = s.x - s.radius - 1; x <= s.x + s.radius + 1; x++)
+        if (w.getMat(x, y) === 6 && (!keep || y > keep.y)) keep = { x, y };
+    for (let y = s.y - s.radius - 1; y <= s.y + s.radius + 1; y++)
+      for (let x = s.x - s.radius - 1; x <= s.x + s.radius + 1; x++)
+        if (w.getMat(x, y) === 6 && !(x === keep!.x && y === keep!.y)) w.damage(x, y, 1e9);
+    g.drone.x = s.x + 0.5;
+    g.drone.y = s.y - 2.5; // within 3 cells of the centre: the old autopilot gave up here, 24 cells from the last cell
+    g.progression.levels.autoTarget = 1;
+    g.progression.levels.laserDamage = 8;
+    g.progression.levels.laserWidth = 2;
+    g.applyUpgrades();
+    g.autoMode = true;
+    g.apReady = false;
+    (window as any).__keep = keep;
+    return { remaining: core.remaining, dist: Math.hypot(keep!.x - s.x, keep!.y - s.y) };
+  });
+  expect(info.remaining).toBe(1);
+  expect(info.dist).toBeGreaterThan(18);
+  // The autopilot must fly towards the remaining cell (the old one stood still inside the hollow core).
+  await page.waitForFunction(() => {
+    const g = window.__game! as any;
+    const k = (window as any).__keep;
+    return Math.hypot(k.x + 0.5 - g.drone.x, k.y + 0.5 - g.drone.y) < 8;
+  }, null, { timeout: 30000 });
+  expect(errors).toEqual([]);
+});

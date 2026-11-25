@@ -601,13 +601,56 @@ export class Game {
    * it dives straight in. Where terrain blocks the rig it holds position and the laser
    * cuts the blocking cell. Bounded work: one 3x3 probe per tick.
    */
+  private readonly coreCell = { x: 0, y: 0, found: false };
+  private coreCellTick = -999;
+  private apTick = 0;
+
+  /** Nearest remaining Core Material cell of a core (rescanned every 20 ticks; bounded by the core size). */
+  private nearestCoreCell(core: CoreState): { x: number; y: number } | null {
+    const w = this.world;
+    const cc = this.coreCell;
+    if (cc.found && this.apTick - this.coreCellTick < 20 && w.getMat(cc.x, cc.y) === Mat.CoreMaterial) return cc;
+    this.coreCellTick = this.apTick;
+    cc.found = false;
+    const R = core.site.radius + 1;
+    let best = Infinity;
+    for (let y = core.site.y - R; y <= core.site.y + R; y++) {
+      for (let x = core.site.x - R; x <= core.site.x + R; x++) {
+        if (w.getMat(x, y) !== Mat.CoreMaterial) continue;
+        const dd = (x + 0.5 - this.drone.x) ** 2 + (y + 0.5 - this.drone.y) ** 2;
+        if (dd < best) {
+          best = dd;
+          cc.x = x;
+          cc.y = y;
+          cc.found = true;
+        }
+      }
+    }
+    return cc.found ? cc : null;
+  }
+
   private autopilotStep(): void {
+    this.apTick++;
     this.apAx = 0;
     this.apAy = 0;
     const c = this.nearestCore();
-    if (!c || c.dist < 3) return;
+    if (!c) return;
     const d = this.drone;
     const w = this.world;
+    // Close to a core: steer at its nearest remaining cell (not the centre, which is
+    // already air once the core is hollowed out — the last cells sit at the rim).
+    let tx = c.dx;
+    let ty = c.dy;
+    let tdist = c.dist;
+    if (c.dist < c.core.site.shell + 25) {
+      const cell = this.nearestCoreCell(c.core);
+      if (cell) {
+        tx = cell.x + 0.5 - d.x;
+        ty = cell.y + 0.5 - d.y;
+        tdist = Math.hypot(tx, ty);
+      }
+    }
+    if (tdist < 2) return;
     const BAND_H = 7;
     const HALF_SPAN = 90;
     if (!this.apReady) {
@@ -619,9 +662,9 @@ export class Game {
     let gx: number;
     let gy: number;
     let speed = 1;
-    if (c.dist < 45) {
-      gx = c.dx / c.dist;
-      gy = c.dy / c.dist;
+    if (c.dist < 45 || tdist < 45) {
+      gx = tx / tdist;
+      gy = ty / tdist;
     } else {
       const sy = surfaceY(Math.floor(d.x), w);
       const frac = Math.min(1, Math.max(0, (d.y - sy) / Math.max(1, c.core.site.y - sy)));

@@ -126,3 +126,9 @@ Next: M2 (see docs/TASKS.md).
 - `Emerald` (9, Dschungel): replaces crystal veins, conducts resonance chains (`isResonant`, also for fracture charge), 55 durability / 16 MP, tougher rock (dense threshold 0.28). `FrostCrystal` (10, Eiswelt): replaces Unstable Ore, 25 durability / 9 MP, shatters in a 1.5× wider, 0.55× weaker blast (`Reactions` blast kind).
 - Bot minutes Echo 0–5 (seed 1337): 39, 40, 55, 69, 62, 77 (Echo 4 / Gold dips slightly below Echo 3; not tuned further). Guard test windows still hold.
 - Not done: biome-specific vision/scanner effects (Eiswelt idea), per-biome Echo upgrade, Autopilot time per Echo world.
+
+## Autopilot per-Echo measurement
+- New `scripts/pacing-auto.mjs [worlds] [seed]` (needs `npm run build`): real-browser Autopilot probe per Echo world.
+- Found a real bug: Autopilot stalled on the last core cell when the drone sat in the hollowed core cavity (steered at the core centre, gave up at dist < 3). Fix: steer at the nearest remaining core cell (`nearestCoreCell`). Regression e2e test fails without the fix.
+- GoldVein tweaked to durability 130 / value 24.
+- Autopilot minutes Echo 0-5 (ideal buying, granted at t=0, optimistic): 25.1, 29.6, 43, 56.8, 49.7, 58.2. Real play is slower (~1 h reported for Echo 0).
