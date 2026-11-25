@@ -5,11 +5,12 @@ import { Game } from './core/Game';
 import { Ui } from './ui/Ui';
 import { QUALITY_PRESETS, loadSettings } from './ui/settings';
 import { createPlatformAdapter } from './platform/PlatformAdapter';
-import { GAME_TITLE, CORE_COUNT, DEFAULT_WORLD_WIDTH, DEFAULT_WORLD_HEIGHT } from './config/meta';
+import { GAME_TITLE, CORE_COUNT, coreCountFor, DEFAULT_WORLD_WIDTH, DEFAULT_WORLD_HEIGHT } from './config/meta';
 import { generateMaterialsAsync } from './world/generateAsync';
 import { GENERATOR_VERSION } from './world/generator';
 import { createSaveStore, SaveStore } from './storage/SaveStore';
 import type { SaveData } from './storage/saveFormat';
+import { ECHO_IDS, type UpgradeId } from './progression/upgrades';
 
 declare global {
   interface Window {
@@ -132,7 +133,7 @@ async function boot(): Promise<void> {
     }
   };
 
-  const startGame = async (data: SaveData | null, prestige = 0): Promise<void> => {
+  const startGame = async (data: SaveData | null, prestige = 0, carry?: { levels: Partial<Record<UpgradeId, number>>; echo: number }): Promise<void> => {
     if (game) {
       game.destroy();
       game = null;
@@ -148,8 +149,9 @@ async function boot(): Promise<void> {
     loadingTitle.textContent = 'Welt wird erzeugt…';
     loading.classList.remove('hidden');
     progress(0);
-    const mats = await generateMaterialsAsync({ width, height, seed, cores: CORE_COUNT }, (p) => progress(p * 0.9));
-    const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores: CORE_COUNT, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
+    const cores = data ? (data.cores ?? CORE_COUNT) : coreCountFor(prestige);
+    const mats = await generateMaterialsAsync({ width, height, seed, cores }, (p) => progress(p * 0.9));
+    const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores, carry: data ? undefined : carry, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
     if (data) {
       if (data.generator !== GENERATOR_VERSION) {
         ui.toast('Spielstand aus einer älteren Weltversion: Unberührte Bereiche wurden neu erzeugt.', false, 7000);
@@ -171,6 +173,7 @@ async function boot(): Promise<void> {
       if (done < g.cores.length) ui.toast(`Resonanzkern ${done}/${g.cores.length} zerstört! Der Scanner zeigt den nächsten.`, false, 5000);
     };
     g.onVault = (rf, mp) => ui.toast(`Geheimkammer entdeckt! +${rf} RF, +${mp.toLocaleString('de-DE')} MP`, false, 5000);
+    if (!data) ui.toast(`ZIEL: Zerstöre alle ${g.cores.length} Resonanzkerne${prestige ? ` (Echo ${prestige})` : ''}. Der Scanner zeigt den Weg.`, false, 7000);
     g.onVictory = () => {
       blockingOverlay = true;
       applyPause();
@@ -204,7 +207,20 @@ async function boot(): Promise<void> {
   };
   ui.handlers.onNewWorld = () => {
     const next = (game?.progression.prestige ?? 0) + 1;
-    void startGame(null, next).catch(fatal);
+    const pr = game?.progression;
+    const carry = pr ? { levels: Object.fromEntries(ECHO_IDS.map((id) => [id, pr.levels[id]])) as Partial<Record<UpgradeId, number>>, echo: pr.echo } : undefined;
+    void startGame(null, next, carry).catch(fatal);
+  };
+  ui.handlers.onEchoShop = () => {
+    blockingOverlay = false;
+    applyPause();
+    ui.toggleUpgrades(true, 'echo');
+  };
+  ui.handlers.onGoalClick = () => {
+    if (!game) return;
+    blockingOverlay = true;
+    applyPause();
+    ui.showVictory(game);
   };
   ui.handlers.onVictoryClose = () => {
     blockingOverlay = false;

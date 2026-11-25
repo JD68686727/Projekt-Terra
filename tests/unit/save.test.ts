@@ -275,6 +275,15 @@ describe('save migration v1 → v2', () => {
     expect((m as SaveData).vaults).toEqual([]);
     expect((m as SaveData).nano).toBeNull();
   });
+  it('accepts optional echo/cores fields and rejects bad ones', () => {
+    const w = new World(64, 64, 3);
+    expect(validateSave(makeSave(w, { cores: 5 }))).toBe(true);
+    expect(validateSave(makeSave(w, { cores: 0 }))).toBe(false);
+    expect(validateSave(makeSave(w, { cores: 2.5 }))).toBe(false);
+    const base = makeSave(w, {});
+    expect(validateSave({ ...base, progression: { ...base.progression, echo: 4 } })).toBe(true);
+    expect(validateSave({ ...base, progression: { ...base.progression, echo: -1 } })).toBe(false);
+  });
   it('rejects bad v2 fields', () => {
     const w = new World(64, 64, 3);
     expect(validateSave(makeSave(w, { prestige: -1 }))).toBe(false);

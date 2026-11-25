@@ -49,8 +49,8 @@ export function coreSites(spec: WorldSpec): CoreSite[] {
   const top = height * SKY_FRACTION;
   for (let i = 0; i < cores; i++) {
     // Deeper cores are larger with thicker shells: later goals stay meaningful.
-    const radius = Math.round(baseRadius * (1 + 0.9 * i));
-    const shell = radius + 5 + 4 * i;
+    const radius = Math.round(baseRadius * Math.min(3.5, 1 + 0.9 * i));
+    const shell = radius + 5 + 4 * Math.min(i, 4);
     const fx = 0.15 + 0.7 * hash01(i, 11, seed);
     const fy = cores === 1 ? 0.7 + 0.18 * hash01(i, 13, seed) : 0.3 + 0.58 * (i / (cores - 1)) + 0.04 * hash01(i, 13, seed);
     const x = Math.floor(width * fx);
@@ -165,7 +165,7 @@ function stampCore(out: Uint8Array, width: number, height: number, seed: number,
 }
 
 /** Damage divisor per core index (deeper cores are shielded harder). */
-export const CORE_SHIELDS = [1, 3, 6];
+export const CORE_SHIELDS = [1, 3, 6, 9, 12, 16];
 
 /**
  * Returns a lookup used by World.damage for Core Material cells: the shield

@@ -437,3 +437,15 @@ html, body {
 }
 .weapon-bar, .bar-group { pointer-events: none; }
 .slot { pointer-events: auto; }
+
+/* Goal line + Echo */
+.hud-goal {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+  max-width: 60vw; padding: 4px 12px; font: inherit; font-size: 12px; letter-spacing: 0.08em;
+  color: #e9d8ff; background: rgba(12, 8, 24, 0.72); border: 1px solid rgba(213, 140, 255, 0.45);
+  pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.hud-goal.done { pointer-events: auto; cursor: pointer; color: #fff; border-color: #ffd36a; animation: goalPulse 1.4s ease-in-out infinite; }
+@keyframes goalPulse { 50% { box-shadow: 0 0 12px rgba(255, 211, 106, 0.7); } }
+.w-echo { color: #d58cff; }
+.upgrade-buy.echo { background: linear-gradient(180deg, rgba(213, 140, 255, 0.3), rgba(213, 140, 255, 0.1)); border-color: #d58cff; }

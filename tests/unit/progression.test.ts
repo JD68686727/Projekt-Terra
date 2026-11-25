@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Progression } from '../../src/progression/Progression';
 import { UPGRADES, upgradeCost } from '../../src/progression/upgrades';
+import { CORE_COUNT, MAX_CORES, coreCountFor } from '../../src/config/meta';
 import { PulseCannon } from '../../src/weapons/PulseCannon';
 import { World } from '../../src/world/World';
 import { MATERIALS, Mat } from '../../src/world/materials';
@@ -101,5 +102,34 @@ describe('PulseCannon', () => {
     const dealt = MATERIALS[Mat.TitaniumMatrix].durability - w.getHp(34, 32);
     expect(dealt).toBeGreaterThan(30);
     expect(dealt).toBeLessThanOrEqual(50);
+  });
+});
+
+describe('Echo', () => {
+  it('core count grows per Echo and is capped', () => {
+    expect(coreCountFor(0)).toBe(CORE_COUNT);
+    expect(coreCountFor(1)).toBe(CORE_COUNT + 1);
+    expect(coreCountFor(99)).toBe(MAX_CORES);
+  });
+  it('Echo upgrades are bought with fragments and scale stats', () => {
+    const p = new Progression();
+    expect(p.buy('echoMp')).toBe('insufficient');
+    p.echo = 10;
+    expect(p.buy('echoMp')).toBe('ok');
+    expect(p.echo).toBe(7);
+    expect(p.mpMultiplier()).toBeCloseTo(1.2);
+    p.levels.echoLaser = 5;
+    expect(p.laserStats().dps).toBeCloseTo(160 * 2);
+    p.levels.echoStart = 2;
+    expect(p.echoStartMp()).toBe(6000);
+    p.levels.echoRf = 4;
+    p.earnRf(1);
+    expect(p.rf).toBeCloseTo(2);
+  });
+  it('award scales with cores and prestige', () => {
+    const p = new Progression();
+    expect(p.echoAward(3)).toBe(6);
+    p.prestige = 2;
+    expect(p.echoAward(5)).toBe(12);
   });
 });

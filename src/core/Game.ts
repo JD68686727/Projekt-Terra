@@ -3,7 +3,7 @@ import { SPRITE_SCALE, sprites } from '../rendering/sprites';
 import { World } from '../world/World';
 import { CoreSite, GENERATOR_VERSION, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
-import type { UpgradeId } from '../progression/upgrades';
+import { ECHO_IDS, type UpgradeId } from '../progression/upgrades';
 import { MATERIALS, Mat } from '../world/materials';
 import { hash01 } from '../world/rng';
 import { TerrainRenderer } from '../rendering/TerrainRenderer';
@@ -45,6 +45,8 @@ export interface GameOptions {
   detail?: number;
   /** Completed runs (permanent bonus). */
   prestige?: number;
+  /** Echo carry-over into a new world (Echo upgrade levels + fragments). */
+  carry?: { levels: Partial<Record<UpgradeId, number>>; echo: number };
 }
 
 export interface VaultState {
@@ -119,6 +121,8 @@ export class Game {
   /** Seconds of unpaused play. */
   playTime = 0;
   victorySeen = false;
+  /** Echo fragments awarded by the victory (for the victory screen). */
+  echoGained = 0;
   /** Fired once when every core is destroyed. */
   onVictory: (() => void) | null = null;
   /** Fired when a core cell is destroyed (for UI feedback). */
@@ -155,6 +159,11 @@ export class Game {
   constructor(app: Application, opts: GameOptions) {
     this.app = app;
     this.progression.prestige = opts.prestige ?? 0;
+    if (opts.carry) {
+      for (const id of ECHO_IDS) this.progression.levels[id] = opts.carry.levels[id] ?? 0;
+      this.progression.echo = opts.carry.echo;
+      this.progression.mp += this.progression.echoStartMp();
+    }
     this.laser = new CuttingLaser(this.progression.laserStats());
     this.pulse = new PulseCannon(this.progression.pulseStats());
     this.drill = new DrillLauncher(this.progression.drillStats());
@@ -693,6 +702,8 @@ export class Game {
       }
       if (!this.victorySeen && this.cores.every((k) => k.remaining === 0)) {
         this.victorySeen = true;
+        this.echoGained = this.progression.echoAward(this.cores.length);
+        this.progression.echo += this.echoGained;
         this.onVictory?.();
       }
       return;
@@ -761,7 +772,7 @@ export class Game {
       seed: this.world.seed,
       width: this.world.width,
       height: this.world.height,
-      progression: { mp: p.mp, totalMp: p.totalMp, rf: p.rf, totalRf: p.totalRf, levels: { ...p.levels } },
+      progression: { mp: p.mp, totalMp: p.totalMp, rf: p.rf, totalRf: p.totalRf, levels: { ...p.levels }, echo: p.echo },
       stats: { destroyed: this.stats.destroyed, playTime: this.playTime },
       drone: { x: this.drone.x, y: this.drone.y },
       emitters: this.emitters.map((e) => ({ x: e.x, y: e.y })),
@@ -771,6 +782,7 @@ export class Game {
       nano: this.nano.active ? { x: this.nano.anchorX, y: this.nano.anchorY } : null,
       fog: this.fog.encode(),
       generator: GENERATOR_VERSION,
+      cores: this.cores.length,
       chunks: serializeChunks(this.world),
     };
   }
@@ -782,6 +794,7 @@ export class Game {
     p.totalMp = d.progression.totalMp;
     p.rf = d.progression.rf;
     p.totalRf = d.progression.totalRf;
+    p.echo = d.progression.echo ?? 0;
     for (const id of Object.keys(p.levels) as UpgradeId[]) {
       const v = d.progression.levels[id];
       if (typeof v === 'number') p.levels[id] = v;

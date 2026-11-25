@@ -30,10 +30,15 @@ export type UpgradeId =
   | 'fractureUnlock'
   | 'fractureReach'
   | 'fractureDamage'
-  | 'fractureCooldown';
+  | 'fractureCooldown'
+  | 'echoMp'
+  | 'echoStart'
+  | 'echoLaser'
+  | 'echoDrone'
+  | 'echoRf';
 
-export type UpgradeGroup = 'laser' | 'pulse' | 'drill' | 'nano' | 'fracture' | 'resonance' | 'auto' | 'core';
-export type Currency = 'mp' | 'rf';
+export type UpgradeGroup = 'laser' | 'pulse' | 'drill' | 'nano' | 'fracture' | 'resonance' | 'auto' | 'core' | 'echo';
+export type Currency = 'mp' | 'rf' | 'echo';
 
 export interface UpgradeDef {
   readonly id: UpgradeId;
@@ -82,7 +87,16 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'fractureReach', group: 'fracture', name: 'Bruchausbreitung', desc: '+50 % Reichweite & Verzweigung', baseCost: 2000, growth: 2.1, maxLevel: 10, requires: 'fractureUnlock' },
   { id: 'fractureDamage', group: 'fracture', name: 'Bruchenergie', desc: '+40 % Schaden', baseCost: 1500, growth: 2.1, maxLevel: 12, requires: 'fractureUnlock' },
   { id: 'fractureCooldown', group: 'fracture', name: 'Schnellzünder', desc: '−15 % Abklingzeit', baseCost: 40, growth: 2.0, maxLevel: 6, currency: 'rf', requires: 'fractureUnlock' },
+  // Echo upgrades: bought with Echo fragments (earned by breaking a world); they persist into every new world.
+  { id: 'echoMp', group: 'echo', name: 'Echo-Raffinerie', desc: 'Permanent +20 % Material Points', baseCost: 3, growth: 1.7, maxLevel: 10, currency: 'echo' },
+  { id: 'echoLaser', group: 'echo', name: 'Echo-Laser', desc: 'Permanent +20 % Laserschaden', baseCost: 3, growth: 1.7, maxLevel: 10, currency: 'echo' },
+  { id: 'echoStart', group: 'echo', name: 'Echo-Vorrat', desc: 'Neue Welten starten mit Material Points', baseCost: 4, growth: 2.0, maxLevel: 5, currency: 'echo' },
+  { id: 'echoDrone', group: 'echo', name: 'Echo-Antrieb', desc: 'Permanent +10 % Fluggeschwindigkeit', baseCost: 5, growth: 1.9, maxLevel: 5, currency: 'echo' },
+  { id: 'echoRf', group: 'echo', name: 'Echo-Resonanz', desc: 'Permanent +25 % Resonance Fragments', baseCost: 6, growth: 1.9, maxLevel: 5, currency: 'echo' },
 ];
+
+/** Upgrades that carry over into each new world (Echo). */
+export const ECHO_IDS: readonly UpgradeId[] = ['echoMp', 'echoLaser', 'echoStart', 'echoDrone', 'echoRf'];
 
 export const UPGRADE_BY_ID: Readonly<Record<UpgradeId, UpgradeDef>> = Object.fromEntries(
   UPGRADES.map((u) => [u.id, u]),

@@ -1,4 +1,4 @@
-import { UPGRADES, UPGRADE_BY_ID, UpgradeId, upgradeCost } from './upgrades';
+import { UPGRADES, UPGRADE_BY_ID, UpgradeId, upgradeCost, Currency } from './upgrades';
 import type { LaserStats } from '../weapons/CuttingLaser';
 import type { PulseStats } from '../weapons/PulseCannon';
 import type { ReactionStats } from '../world/Reactions';
@@ -19,6 +19,8 @@ export class Progression {
   /** Resonance Fragments (special currency, earned from resonance chains). */
   rf = 0;
   totalRf = 0;
+  /** Echo fragments (earned by breaking a world, spent on permanent Echo upgrades). */
+  echo = 0;
   /** Completed runs; each grants a permanent +50 % MP bonus. */
   prestige = 0;
   readonly levels: Record<UpgradeId, number>;
@@ -45,7 +47,7 @@ export class Progression {
     return !!req && this.levels[req] < 1;
   }
 
-  currency(id: UpgradeId): 'mp' | 'rf' {
+  currency(id: UpgradeId): Currency {
     return UPGRADE_BY_ID[id].currency ?? 'mp';
   }
 
@@ -74,8 +76,19 @@ export class Progression {
   }
 
   earnRf(amount: number): void {
-    this.rf += amount;
-    this.totalRf += amount;
+    const a = amount * (1 + 0.25 * this.levels.echoRf);
+    this.rf += a;
+    this.totalRf += a;
+  }
+
+  /** Echo fragments for breaking a world with `cores` cores. */
+  echoAward(cores: number): number {
+    return cores * 2 + this.prestige;
+  }
+
+  /** Material Points a fresh world starts with (Echo-Vorrat). */
+  echoStartMp(): number {
+    return 1500 * this.levels.echoStart * this.levels.echoStart;
   }
 
   reactionStats(): ReactionStats {
@@ -105,17 +118,17 @@ export class Progression {
   }
 
   mpMultiplier(): number {
-    return (1 + 0.25 * this.levels.mpMultiplier) * (1 + 0.5 * this.prestige);
+    return (1 + 0.25 * this.levels.mpMultiplier) * (1 + 0.5 * this.prestige) * (1 + 0.2 * this.levels.echoMp);
   }
 
   droneSpeed(): number {
-    return 32 * (1 + 0.15 * this.levels.droneSpeed);
+    return 32 * (1 + 0.15 * this.levels.droneSpeed) * (1 + 0.1 * this.levels.echoDrone);
   }
 
   laserStats(): LaserStats {
     const l = this.levels;
     return {
-      dps: 160 * Math.pow(1.3, l.laserDamage),
+      dps: 160 * Math.pow(1.3, l.laserDamage) * (1 + 0.2 * l.echoLaser),
       range: 60 + 12 * l.laserRange,
       width: 1 + l.laserWidth,
       pierce: 1 + l.laserPierce,

@@ -365,11 +365,25 @@ test('destroying all resonance cores shows the final screen; new world grants pr
   expect(await page.evaluate(() => window.__game!.paused)).toBe(false);
   await expect(page.locator('#hud-scan')).toContainText('ALLE KERNE');
   // Re-open final screen via a fresh victory is not possible; start new world directly through the handler path.
+  // Goal line becomes a button that reopens the final screen.
+  await expect(page.locator('#hud-goal')).toContainText('WELT GEBROCHEN');
+  await page.locator('#hud-goal').click();
+  await expect(page.locator('#victory')).toContainText('Echo-Fragmente erhalten: +6');
+  expect(await page.evaluate(() => window.__game!.progression.echo)).toBe(6);
+  await page.locator('#btn-echo-shop').click();
+  await expect(page.locator('#upgrade-panel')).toBeVisible();
+  await page.locator('#buy-echoMp').click();
+  expect(await page.evaluate(() => window.__game!.progression.level('echoMp'))).toBe(1);
+  expect(await page.evaluate(() => window.__game!.progression.echo)).toBe(3);
   await page.evaluate(() => window.__game!.onVictory?.());
   await page.locator('#btn-new-world').click();
   await page.waitForFunction(() => window.__game && window.__game.progression.prestige === 1);
   await expect(page.locator('#loading')).toBeHidden();
-  expect(await page.evaluate(() => window.__game!.progression.mpMultiplier())).toBeCloseTo(1.5);
+  // Echo carries over; the new world has one more core.
+  expect(await page.evaluate(() => window.__game!.progression.mpMultiplier())).toBeCloseTo(1.8);
+  expect(await page.evaluate(() => window.__game!.progression.echo)).toBe(3);
+  expect(await page.evaluate(() => window.__game!.cores.length)).toBe(4);
+  await expect(page.locator('#hud-goal')).toContainText('0/4');
   expect(await page.evaluate(() => window.__game!.progression.level('laserDamage'))).toBe(0);
   expect(errors).toEqual([]);
 });

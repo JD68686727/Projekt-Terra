@@ -1,4 +1,4 @@
-import { GAME_SUBTITLE, GAME_TITLE, GAME_VERSION } from '../config/meta';
+import { GAME_SUBTITLE, GAME_TITLE, GAME_VERSION, MAX_CORES } from '../config/meta';
 import type { Game, WeaponId } from '../core/Game';
 import { UPGRADES, UpgradeGroup, UpgradeId } from '../progression/upgrades';
 import { QUALITY_PRESETS, Quality, Settings, saveSettings } from './settings';
@@ -28,6 +28,7 @@ const GROUP_LABEL: Record<UpgradeGroup, string> = {
   resonance: 'RESONANZ',
   auto: 'AUTOMATION',
   core: 'SYSTEME',
+  echo: 'ECHO',
 };
 
 const GROUP_ICON: Record<UpgradeGroup, IconName> = {
@@ -39,6 +40,7 @@ const GROUP_ICON: Record<UpgradeGroup, IconName> = {
   resonance: 'rf',
   auto: 'auto',
   core: 'core',
+  echo: 'core',
 };
 
 interface UpgradeRow {
@@ -72,6 +74,8 @@ export class Ui {
   private readonly upBadge: HTMLElement;
   private readonly walletMp: HTMLElement;
   private readonly walletRf: HTMLElement;
+  private readonly walletEcho: HTMLElement;
+  private readonly goalEl: HTMLElement;
   private readonly tabBtns = new Map<string, HTMLButtonElement>();
   private readonly groupHeads: HTMLElement[] = [];
   private tab: UpgradeGroup | 'all' = 'all';
@@ -101,6 +105,8 @@ export class Ui {
     onReset: () => {},
     onVictoryClose: () => {},
     onNewWorld: () => {},
+    onEchoShop: () => {},
+    onGoalClick: () => {},
   };
 
   constructor(root: HTMLElement, settings: Settings) {
@@ -249,7 +255,13 @@ export class Ui {
     this.scanDist = el('div', 'scan-dist');
     this.scanShield = el('div', 'scan-shield');
     this.scanEl.append(this.scanTitle, this.scanDist, this.scanShield);
+    this.goalEl = el('button', 'hud-goal');
+    this.goalEl.id = 'hud-goal';
+    this.goalEl.addEventListener('click', () => {
+      if (this.goalEl.classList.contains('done')) this.handlers.onGoalClick();
+    });
     core.append(this.compass, this.scanEl);
+    this.hud.append(this.goalEl);
     this.hud.append(res, core);
 
     // Action bar (bottom centre)
@@ -310,7 +322,8 @@ export class Ui {
     const wallet = el('span', 'panel-wallet');
     this.walletMp = el('span', 'w-mp');
     this.walletRf = el('span', 'w-rf');
-    wallet.append(icon('mp', 1), this.walletMp, icon('rf', 1), this.walletRf);
+    this.walletEcho = el('span', 'w-echo');
+    wallet.append(icon('mp', 1), this.walletMp, icon('rf', 1), this.walletRf, icon('core', 1), this.walletEcho);
     const close = el('button', 'panel-close', '×');
     close.addEventListener('click', () => this.toggleUpgrades(false));
     head.append(title, wallet, close);
@@ -363,7 +376,7 @@ export class Ui {
       info.append(name, el('div', 'upgrade-desc', u.desc), level);
       const cost = el('button', 'upgrade-buy');
       cost.id = `buy-${u.id}`;
-      const costIcon = icon(u.currency === 'rf' ? 'rf' : 'mp', 1);
+      const costIcon = icon(u.currency === 'rf' ? 'rf' : u.currency === 'echo' ? 'core' : 'mp', 1);
       const costText = el('span', 'cost-v');
       cost.append(costIcon, costText);
       cost.addEventListener('click', () => this.buy(u.id));
@@ -442,6 +455,7 @@ export class Ui {
       `Resonance Fragments gesamt: ${fmt(game.progression.totalRf)}`,
       `Geheimkammern: ${game.vaults.filter((x) => x.found).length} / ${game.vaults.length}`,
       `Echo-Stufe: ${game.progression.prestige}`,
+      `Echo-Fragmente erhalten: +${game.echoGained || game.progression.echoAward(game.cores.length)} (Vorrat: ${game.progression.echo})`,
     ];
     const story = el('p', 'victory-story', 'Die letzten Echos der Resonanzkerne verklingen. Unter dir liegt eine gebrochene, stille Welt – bereit, neu zu entstehen.');
     box.append(story);
@@ -453,14 +467,21 @@ export class Ui {
       v.classList.add('hidden');
       this.handlers.onVictoryClose();
     });
-    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: +50 % MP)`);
+    const shop = el('button', 'btn', 'ECHO-UPGRADES');
+    shop.id = 'btn-echo-shop';
+    shop.addEventListener('click', () => {
+      v.classList.add('hidden');
+      this.handlers.onEchoShop();
+    });
+    const nextCores = Math.min(MAX_CORES, game.cores.length + 1);
+    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: ${nextCores} KERNE, +50 % MP)`);
     nw.id = 'btn-new-world';
     nw.addEventListener('click', () => {
       v.classList.add('hidden');
       this.handlers.onNewWorld();
     });
     const col = el('div', 'menu-buttons');
-    col.append(nw, cont);
+    col.append(nw, shop, cont);
     box.append(stats, col);
     v.append(box);
     v.classList.remove('hidden');
@@ -475,8 +496,9 @@ export class Ui {
     this.perf.classList.toggle('hidden', !this.perfVisible);
   }
 
-  toggleUpgrades(force?: boolean): void {
+  toggleUpgrades(force?: boolean, tab?: UpgradeGroup | 'all'): void {
     const show = force ?? this.panel.classList.contains('hidden');
+    if (tab) this.tabBtns.get(tab)?.click();
     this.panel.classList.toggle('hidden', !show);
     this.lastHud = 0;
   }
@@ -534,6 +556,12 @@ export class Ui {
       this.scanDist.textContent = '';
       this.scanShield.textContent = '';
     }
+    const coresDone = game.cores.filter((c) => c.remaining === 0).length;
+    const allDone = game.cores.length > 0 && coresDone === game.cores.length;
+    this.goalEl.classList.toggle('done', allDone);
+    this.goalEl.textContent = allDone
+      ? 'WELT GEBROCHEN – HIER FÜR NÄCHSTE WELT'
+      : `ZIEL: ${coresDone}/${game.cores.length} KERNE ZERSTÖREN${pr.prestige ? ` · ECHO ${pr.prestige}` : ''}`;
     const autoBtn = this.root.querySelector('#btn-auto')!;
     autoBtn.classList.toggle('locked', !pr.autoTargetUnlocked());
     autoBtn.classList.toggle('active', game.autoMode);
@@ -566,11 +594,13 @@ export class Ui {
       r.cost.disabled = state !== 'ok';
       r.costText.textContent = state === 'maxed' ? 'MAX' : fmtShort(pr.cost(r.id));
       r.cost.classList.toggle('rf', pr.currency(r.id) === 'rf');
+      r.cost.classList.toggle('echo', pr.currency(r.id) === 'echo');
     }
     if (panelOpen) {
       for (const gh of this.groupHeads) gh.classList.toggle('hidden', this.tab !== 'all' || !groupVisible.has(gh.dataset.g as UpgradeGroup));
       this.walletMp.textContent = fmtShort(pr.mp);
       this.walletRf.textContent = rfText;
+      this.walletEcho.textContent = fmtShort(pr.echo);
     }
     const up = this.root.querySelector('#btn-upgrades')!;
     up.classList.toggle('glow', affordable > 0);

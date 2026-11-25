@@ -22,7 +22,7 @@ export interface SaveData {
   seed: number;
   width: number;
   height: number;
-  progression: { mp: number; totalMp: number; rf: number; totalRf: number; levels: Record<string, number> };
+  progression: { mp: number; totalMp: number; rf: number; totalRf: number; levels: Record<string, number>; /** Echo fragments (absent in older saves). */ echo?: number };
   stats: { destroyed: number; playTime: number };
   drone: { x: number; y: number };
   emitters: { x: number; y: number }[];
@@ -37,6 +37,8 @@ export interface SaveData {
   fog: Uint8Array | null;
   /** v4: terrain generator version the world was created with. */
   generator: number;
+  /** Number of cores the world was created with (absent in older saves: 3). */
+  cores?: number;
   chunks: SavedChunk[];
 }
 
@@ -142,6 +144,7 @@ export function validateSave(data: unknown): data is SaveData {
   const p = data.progression;
   if (!isObj(p)) return false;
   if (!fin(p.mp) || !fin(p.totalMp) || !fin(p.rf) || !fin(p.totalRf)) return false;
+  if (p.echo !== undefined && (!fin(p.echo) || (p.echo as number) < 0)) return false;
   if (!isObj(p.levels)) return false;
   for (const v of Object.values(p.levels)) if (!nonNegInt(v)) return false;
   const st = data.stats;
@@ -155,6 +158,7 @@ export function validateSave(data: unknown): data is SaveData {
   if (!Array.isArray(data.vaults) || data.vaults.length > 64 || data.vaults.some((v) => typeof v !== 'boolean')) return false;
   if (data.nano !== null && (!isObj(data.nano) || !fin(data.nano.x) || !fin(data.nano.y))) return false;
   if (!fin(data.generator) || (data.generator as number) < 1) return false;
+  if (data.cores !== undefined && (!nonNegInt(data.cores) || (data.cores as number) < 1 || (data.cores as number) > 16)) return false;
   if (data.fog !== null) {
     if (!(data.fog instanceof Uint8Array)) return false;
     const total = Math.ceil((data.width as number) / FOG_CELL) * Math.ceil((data.height as number) / FOG_CELL);

@@ -8,3 +8,9 @@ export const DEFAULT_WORLD_WIDTH = 1024;
 export const DEFAULT_WORLD_HEIGHT = 2048;
 /** Hidden resonance cores; destroying all of them ends the game. */
 export const CORE_COUNT = 3;
+/** Upper bound of cores in later Echo worlds. */
+export const MAX_CORES = 6;
+/** Cores of a new world: each Echo adds one more core (capped). */
+export function coreCountFor(prestige: number): number {
+  return Math.min(MAX_CORES, CORE_COUNT + Math.max(0, prestige));
+}

@@ -95,3 +95,9 @@ Next: M2 (see docs/TASKS.md).
 - Autopilot rework (feedback: it dove straight at the core): now strip-mines layer by layer — sweeps horizontally along the terrain contour in 7-row bands, goes one band deeper per pass, the ±90-cell window drifts toward the nearest core, dives straight in within 45 cells. Laser slows the sweep while chewing.
 - Planet rotation smoothed: sub-column linear sampling of the band/ring maps (map 512×96, ring 1024), redraw at 25 Hz (~1 ms), so palette steps shift pixel by pixel instead of jumping.
 - Parallax smoothness: backdrop layers now use the exact (un-snapped) camera position (Camera.fracX/Y compensation) and distant layers (sky, nebula, far mountains, moon, planet) use linear filtering so slow parallax moves sub-pixel; near layers stay crisp/nearest.
+
+## Endgame pass — Echo loop + clear goal
+- HUD goal line (`#hud-goal`): "ZIEL: i/n KERNE ZERSTÖREN" (+ Echo level); turns into a button after victory to reopen the final screen. Start toast states the goal.
+- Each Echo adds one core (`coreCountFor`: 3 → max 6) with extra shield tiers `[1,3,6,9,12,16]`; core radius/shell capped. Saves store `cores` (absent = 3).
+- Victory awards Echo fragments (`2 × cores + prestige`). New group ECHO in the upgrade panel (currency `echo`): Echo-Raffinerie (+20 % MP), Echo-Laser (+20 % dmg), Echo-Vorrat (start MP), Echo-Antrieb (+10 % speed), Echo-Resonanz (+25 % RF). Levels + fragments carry into each new world (`Game opts.carry`); saved via `progression.echo` (optional field, no version bump).
+- Tests: 111 unit, 19 e2e (victory test extended: award, shop, carry-over, 4 cores). Not validated: real play balance of 4–6 core worlds (no pacing bot for Echo worlds yet).

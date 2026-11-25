@@ -131,3 +131,22 @@ describe('dirty requeue', () => {
     expect(again[0].dirtyY0).toBe(70 & 63);
   });
 });
+
+describe('coreSites with many cores (Echo worlds)', () => {
+  it('stays in bounds and cores do not overlap for all supported counts', async () => {
+    const { coreSites } = await import('../../src/world/generator');
+    for (const [w, h] of [[512, 512], [1024, 2048]]) {
+      for (let n = 3; n <= 6; n++) {
+        for (let seed = 1; seed <= 40; seed++) {
+          const s = coreSites({ width: w, height: h, seed, cores: n });
+          expect(s).toHaveLength(n);
+          for (const c of s) {
+            expect(c.x - c.shell).toBeGreaterThanOrEqual(0);
+            expect(c.x + c.shell).toBeLessThan(w);
+            expect(c.y + c.shell).toBeLessThan(h);
+          }
+        }
+      }
+    }
+  });
+});
