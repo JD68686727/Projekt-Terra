@@ -91,3 +91,4 @@ Next: M2 (see docs/TASKS.md).
 - Upgrade `autoTarget` is now **Autopilot** (T): flies to the nearest core and tunnels (3×3 footprint probe, laser digs the blocking cell). Manual WASD input pauses it.
 - New automation upgrades: **Auto-Pulse** (needs Pulse) and **Auto-Bohrer** (needs Drill), both only active while the autopilot is on.
 - Pacing bots unchanged (they never modelled aim). Tests: +3 e2e (auto laser, autopilot tunnelling, auto pulse/drill); save test now pauses before snapshotting.
+- Pages workflow re-triggered after enabling Pages (Source: GitHub Actions).
