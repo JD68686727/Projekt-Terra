@@ -20,11 +20,11 @@ export class Planet {
   private readonly source: BufferImageSource;
   // Per-pixel precomputed data (-1 = empty).
   private readonly kind: Int8Array; // 0 empty, 1 disc, 2 ring
-  private readonly lonIdx: Int16Array;
+  private readonly lonF: Float32Array; // fractional map column per pixel
   private readonly latIdx: Int16Array;
   private readonly light: Float32Array;
   private readonly ringT: Float32Array;
-  private readonly ringA: Int16Array;
+  private readonly ringA: Float32Array; // fractional ring index per pixel
   private readonly ringFront: Uint8Array;
   private readonly bands: Float32Array; // MAP_W × MAP_H
   private readonly ringMap: Float32Array; // RING_N
@@ -32,9 +32,9 @@ export class Planet {
   private ringOffset = 0;
   private acc = 0;
 
-  private static readonly MAP_W = 256;
+  private static readonly MAP_W = 512;
   private static readonly MAP_H = 96;
-  private static readonly RING_N = 512;
+  private static readonly RING_N = 1024;
   private static readonly PAL = [0x1a0b2a, 0x2e1446, 0x481f58, 0x652c6e, 0x84417e, 0xa45e90, 0xc283a4];
 
   constructor(r: number, seed: number) {
@@ -44,11 +44,11 @@ export class Planet {
     const n = size * size;
     this.px = new Uint8Array(n * 4);
     this.kind = new Int8Array(n);
-    this.lonIdx = new Int16Array(n);
+    this.lonF = new Float32Array(n);
     this.latIdx = new Int16Array(n);
     this.light = new Float32Array(n);
     this.ringT = new Float32Array(n);
-    this.ringA = new Int16Array(n);
+    this.ringA = new Float32Array(n);
     this.ringFront = new Uint8Array(n);
 
     // Equirectangular band map, periodic in longitude.
@@ -73,7 +73,7 @@ export class Planet {
     this.ringMap = new Float32Array(Planet.RING_N);
     for (let i = 0; i < Planet.RING_N; i++) {
       const a = (i / Planet.RING_N) * Math.PI * 2;
-      this.ringMap[i] = valueNoise(Math.cos(a) * 6 + 30, Math.sin(a) * 6, seed ^ 0xa7) * 0.6 + hash01(i >> 3, 1, seed) * 0.25;
+      this.ringMap[i] = valueNoise(Math.cos(a) * 6 + 30, Math.sin(a) * 6, seed ^ 0xa7) * 0.6 + hash01(i >> 4, 1, seed) * 0.25;
     }
 
     const c = size / 2;
@@ -97,7 +97,7 @@ export class Planet {
           this.kind[i] = 1;
           const lon = Math.atan2(nx, nz); // −π/2..π/2 on the visible side
           const lat = Math.asin(Math.max(-1, Math.min(1, ny)));
-          this.lonIdx[i] = Math.floor(((lon / (Math.PI * 2)) + 1) * MW) % MW;
+          this.lonF[i] = ((lon / (Math.PI * 2)) + 1) * MW;
           this.latIdx[i] = Math.max(0, Math.min(MH - 1, Math.round(((lat / (Math.PI / 2)) * 0.5 + 0.5) * (MH - 1))));
           let l = Math.max(0, -nx * 0.55 - ny * 0.45 + nz * 0.7) * 3.2 + bayer(x, y) * 0.9;
           if (d > r - 4) l += 1; // atmosphere rim
@@ -105,7 +105,7 @@ export class Planet {
         } else if (inRing && !(d < r + 2 && !front)) {
           this.kind[i] = 2;
           this.ringT[i] = (e - 0.72) / 0.3;
-          this.ringA[i] = Math.floor(((Math.atan2(v / 0.34, u) / (Math.PI * 2)) + 1) * Planet.RING_N) % Planet.RING_N;
+          this.ringA[i] = ((Math.atan2(v / 0.34, u) / (Math.PI * 2)) + 1) * Planet.RING_N;
           this.ringFront[i] = front ? 1 : 0;
         }
       }
@@ -120,19 +120,29 @@ export class Planet {
     const { size, px } = this;
     const MW = Planet.MAP_W;
     const pal = Planet.PAL;
-    const lo = Math.floor(this.lonOffset);
-    const ro = Math.floor(this.ringOffset);
+    const RN = Planet.RING_N;
+    const lo = this.lonOffset;
+    const ro = this.ringOffset;
     for (let i = 0; i < size * size; i++) {
       const k = this.kind[i];
       if (k === 0) continue;
       let col: number;
       if (k === 1) {
-        const band = this.bands[this.latIdx[i] * MW + ((this.lonIdx[i] + lo) % MW)];
+        // Sub-column linear sampling: bands (and so the palette steps) shift smoothly, pixel by pixel.
+        const u = this.lonF[i] + lo;
+        const u0 = Math.floor(u);
+        const f = u - u0;
+        const row = this.latIdx[i] * MW;
+        const a = this.bands[row + (u0 % MW)];
+        const band = a + (this.bands[row + ((u0 + 1) % MW)] - a) * f;
         const step = Math.max(0, Math.min(pal.length - 1, Math.floor(band + this.light[i])));
         col = pal[step];
       } else {
         const t = this.ringT[i];
-        const clump = this.ringMap[(this.ringA[i] + ro) % Planet.RING_N];
+        const w = this.ringA[i] + ro;
+        const w0 = Math.floor(w);
+        const c0 = this.ringMap[w0 % RN];
+        const clump = c0 + (this.ringMap[(w0 + 1) % RN] - c0) * (w - w0);
         const base = 0.55 + clump * 0.6 - t * 0.25;
         const shade = (this.ringFront[i] ? 1 : 0.8) * base;
         const r = Math.min(255, 26 + 150 * shade);
@@ -152,7 +162,7 @@ export class Planet {
   /** Slow rotation: the disc turns ~once per 3 minutes, the ring a bit faster. */
   update(dt: number): void {
     this.acc += dt;
-    if (this.acc < 0.08) return;
+    if (this.acc < 0.04) return; // ~25 Hz: with sub-pixel sampling this reads as smooth motion
     this.lonOffset = (this.lonOffset + this.acc * (Planet.MAP_W / 180)) % Planet.MAP_W;
     this.ringOffset = (this.ringOffset + this.acc * (Planet.RING_N / 120)) % Planet.RING_N;
     this.acc = 0;

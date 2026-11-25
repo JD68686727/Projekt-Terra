@@ -93,3 +93,4 @@ Next: M2 (see docs/TASKS.md).
 - Pacing bots unchanged (they never modelled aim). Tests: +3 e2e (auto laser, autopilot tunnelling, auto pulse/drill); save test now pauses before snapshotting.
 - Pages workflow re-triggered after enabling Pages (Source: GitHub Actions).
 - Autopilot rework (feedback: it dove straight at the core): now strip-mines layer by layer — sweeps horizontally along the terrain contour in 7-row bands, goes one band deeper per pass, the ±90-cell window drifts toward the nearest core, dives straight in within 45 cells. Laser slows the sweep while chewing.
+- Planet rotation smoothed: sub-column linear sampling of the band/ring maps (map 512×96, ring 1024), redraw at 25 Hz (~1 ms), so palette steps shift pixel by pixel instead of jumping.
