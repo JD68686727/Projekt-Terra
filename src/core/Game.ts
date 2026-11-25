@@ -643,6 +643,17 @@ export class Game {
     }
   }
 
+  private totalCells = 0;
+
+  /**
+   * Share of the world's solid cells destroyed so far (0..1). `solid + destroyed` is
+   * invariant while playing, so the baseline is measured once, lazily, after load.
+   */
+  clearedFraction(): number {
+    if (this.totalCells === 0) this.totalCells = this.world.countSolid() + this.stats.destroyed;
+    return this.totalCells > 0 ? Math.min(1, this.stats.destroyed / this.totalCells) : 0;
+  }
+
   /** Nearest core that still has material, for the scanner UI. */
   nearestCore(): { core: CoreState; dist: number; dx: number; dy: number } | null {
     let best: { core: CoreState; dist: number; dx: number; dy: number } | null = null;

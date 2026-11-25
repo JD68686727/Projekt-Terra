@@ -233,7 +233,7 @@ export class Ui {
       return v;
     };
     this.depthEl = stat('depth', 'Tiefe');
-    this.destroyedEl = stat('broken', 'Zerstörte Zellen');
+    this.destroyedEl = stat('broken', 'Welt zerstört');
     this.emEl = stat('emitter', 'Emitter');
     this.emEl.parentElement!.classList.add('hidden');
     res.append(mpRow, rfRow, stats);
@@ -509,7 +509,9 @@ export class Ui {
     const depth = Math.max(0, Math.floor(game.drone.y - game.world.height * 0.2));
     const em = pr.maxEmitters();
     this.depthEl.textContent = `${depth} m`;
-    this.destroyedEl.textContent = fmtShort(game.stats.destroyed);
+    const cleared = game.clearedFraction() * 100;
+    this.destroyedEl.textContent = `${cleared.toLocaleString('de-DE', { minimumFractionDigits: cleared < 10 ? 2 : 1, maximumFractionDigits: cleared < 10 ? 2 : 1 })} %`;
+    this.destroyedEl.parentElement!.title = `Welt zerstört · ${fmt(game.stats.destroyed)} Zellen`;
     this.emEl.parentElement!.classList.toggle('hidden', em === 0);
     this.emEl.textContent = `${game.emitters.length}/${em}`;
 

@@ -207,6 +207,10 @@ test('laser aims and fires by itself without mouse input', async ({ page }) => {
   await page.keyboard.up('KeyS');
   const after = await page.evaluate(() => ({ d: window.__game!.stats.destroyed, laser: window.__game!.laserOn }));
   expect(after.d - before).toBeGreaterThan(5);
+  const frac = await page.evaluate(() => window.__game!.clearedFraction());
+  expect(frac).toBeGreaterThan(0);
+  expect(frac).toBeLessThan(0.05);
+  await expect(page.locator('.res-panel .stat-row')).toContainText('%');
   expect(errors).toEqual([]);
 });
 
