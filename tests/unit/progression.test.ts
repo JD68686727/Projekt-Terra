@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { Progression } from '../../src/progression/Progression';
 import { UPGRADES, upgradeCost } from '../../src/progression/upgrades';
-import { CORE_COUNT, MAX_CORES, coreCountFor } from '../../src/config/meta';
+import { CORE_COUNT, MAX_CORES, MAX_WORLD_HEIGHT, DEFAULT_WORLD_HEIGHT, coreCountFor, worldHeightFor } from '../../src/config/meta';
 import { PulseCannon } from '../../src/weapons/PulseCannon';
 import { World } from '../../src/world/World';
 import { MATERIALS, Mat } from '../../src/world/materials';
@@ -141,5 +141,14 @@ describe('Echo', () => {
     expect(p.pulseStats().damage).toBeCloseTo(d0 * 2);
     expect(p.drillStats().power).toBeCloseTo(60 * 2);
     expect(p.emitterStats().dps).toBeCloseTo(e0 * 1.6);
+  });
+});
+
+describe('world depth per Echo', () => {
+  it('grows by 512 per Echo, is capped and stays a chunk multiple', () => {
+    expect(worldHeightFor(0)).toBe(DEFAULT_WORLD_HEIGHT);
+    expect(worldHeightFor(1)).toBe(DEFAULT_WORLD_HEIGHT + 512);
+    expect(worldHeightFor(99)).toBe(MAX_WORLD_HEIGHT);
+    for (let n = 0; n < 10; n++) expect(worldHeightFor(n) % 64).toBe(0);
   });
 });

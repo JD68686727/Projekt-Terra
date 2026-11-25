@@ -1,5 +1,5 @@
 import { biomeFor } from '../rendering/biome';
-import { GAME_SUBTITLE, GAME_TITLE, GAME_VERSION, MAX_CORES } from '../config/meta';
+import { GAME_SUBTITLE, GAME_TITLE, GAME_VERSION, MAX_CORES, worldHeightFor } from '../config/meta';
 import type { Game, WeaponId } from '../core/Game';
 import { UPGRADES, UpgradeGroup, UpgradeId } from '../progression/upgrades';
 import { QUALITY_PRESETS, Quality, Settings, saveSettings } from './settings';
@@ -484,7 +484,7 @@ export class Ui {
       this.handlers.onEchoShop();
     });
     const nextCores = Math.min(MAX_CORES, game.cores.length + 1);
-    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: ${biomeFor(game.progression.prestige + 1).name}, ${nextCores} KERNE, +50 % MP)`);
+    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: ${biomeFor(game.progression.prestige + 1).name}, ${nextCores} KERNE, ${worldHeightFor(game.progression.prestige + 1)} M TIEF, +50 % MP)`);
     nw.id = 'btn-new-world';
     nw.addEventListener('click', () => {
       v.classList.add('hidden');

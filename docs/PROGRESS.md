@@ -106,3 +106,7 @@ Next: M2 (see docs/TASKS.md).
 - `src/rendering/biome.ts`: 5 biomes cycling by Echo level (ERDE, ROTE WÜSTE, DSCHUNGEL, EISWELT, GOLDENE KRUSTE). Underground palettes (stone, dense rock, moss, cave wall) via HSL ramps (`applyBiome` in materialArt); sky/nebula/ridges/planet hue-rotated (`shiftPixels` in Backdrop `tex()`, planet palette). Ores, crystals, titanium, cores keep their colours. Echo 0 = original look.
 - Biome name shown in goal line, start toast and next-world button. `?echo=N` URL param starts a new game at that Echo (testing). Loaded saves now start with their saved Echo level (biome + core count).
 - Verified visually in Chrome (SwiftShader) for biomes 0–4; 116 unit, 20 e2e green. Not verified: Echo-world loading from a real save (no dedicated test), other browsers/GPUs.
+
+## Echo depth
+- New worlds are 512 cells deeper per Echo (`worldHeightFor`: 2048 → 4096 cap), width stays 1024; victory button shows the next depth. Loaded saves keep their stored size.
+- Bench (headless SwiftShader, indicative only): 1024×2048 / 3072 / 4096 → boot ≈1.2–1.4 s, sim ≈0.3 ms, terrain ≈8–11 ms, heap ≈52 MB — no measurable growth with depth (chunks are lazy). Real GPU/mobile untested; save size of a deep, heavily dug world untested.

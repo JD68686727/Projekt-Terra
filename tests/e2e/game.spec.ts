@@ -494,3 +494,12 @@ test('echo worlds show their biome name and get more cores', async ({ page }) =>
   expect(await page.evaluate(() => window.__game!.cores.length)).toBe(4);
   expect(errors).toEqual([]);
 });
+
+test('Echo worlds are deeper', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=7&echo=2');
+  expect(await page.evaluate(() => window.__game!.world.height)).toBe(3072);
+  expect(await page.evaluate(() => window.__game!.world.width)).toBe(1024);
+  expect(await page.evaluate(() => window.__game!.cores.length)).toBe(5);
+  expect(errors).toEqual([]);
+});

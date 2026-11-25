@@ -5,7 +5,7 @@ import { Game } from './core/Game';
 import { Ui } from './ui/Ui';
 import { QUALITY_PRESETS, loadSettings } from './ui/settings';
 import { createPlatformAdapter } from './platform/PlatformAdapter';
-import { GAME_TITLE, CORE_COUNT, coreCountFor, DEFAULT_WORLD_WIDTH, DEFAULT_WORLD_HEIGHT } from './config/meta';
+import { GAME_TITLE, CORE_COUNT, coreCountFor, worldHeightFor, DEFAULT_WORLD_WIDTH } from './config/meta';
 import { biomeFor } from './rendering/biome';
 import { generateMaterialsAsync } from './world/generateAsync';
 import { GENERATOR_VERSION } from './world/generator';
@@ -146,15 +146,14 @@ async function boot(): Promise<void> {
     userPaused = false;
     const url = urlParams();
     const seed = data ? data.seed : (url.seed ?? randomSeed());
+    if (!data && prestige === 0) prestige = url.echo; // `?echo=N` (testing)
+    if (data) prestige = data.prestige; // loaded saves keep their Echo level
     const width = data ? data.width : (url.size ?? DEFAULT_WORLD_WIDTH);
-    const height = data ? data.height : url.size ?? DEFAULT_WORLD_HEIGHT;
+    const height = data ? data.height : (url.size ?? worldHeightFor(prestige));
     ui.showMenu(false);
     loadingTitle.textContent = 'Welt wird erzeugt…';
     loading.classList.remove('hidden');
     progress(0);
-    // Loaded saves keep their Echo level (biome + core count); `?echo=N` jumps a new game to that Echo (testing).
-    if (data) prestige = data.prestige;
-    else if (prestige === 0) prestige = url.echo;
     const cores = data ? (data.cores ?? CORE_COUNT) : coreCountFor(prestige);
     const mats = await generateMaterialsAsync({ width, height, seed, cores }, (p) => progress(p * 0.9));
     const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores, carry: data ? undefined : carry, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
