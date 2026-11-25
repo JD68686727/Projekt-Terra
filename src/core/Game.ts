@@ -25,6 +25,7 @@ import { Reactions } from '../world/Reactions';
 import { Emitter } from '../automation/Emitter';
 import { findTarget, TargetResult } from '../automation/targeting';
 import { FixedLoop } from './FixedLoop';
+import { BackgroundTicker } from './BackgroundTicker';
 import { Input } from './Input';
 import { Drone } from './Drone';
 
@@ -256,6 +257,40 @@ export class Game {
 
   stop(): void {
     cancelAnimationFrame(this.raf);
+    this.bgTicker.stop();
+  }
+
+  private background = false;
+  private lastBgT = 0;
+  private readonly bgLoop = new FixedLoop(60, 60);
+  private readonly bgTicker = new BackgroundTicker(() => this.backgroundTick());
+
+  /**
+   * Hidden tab: rendering stops, but the simulation (auto-aim laser, autopilot,
+   * emitters) keeps running in real time via a worker-driven ticker.
+   */
+  setBackground(b: boolean): void {
+    if (b === this.background) return;
+    this.background = b;
+    if (b) {
+      this.input.keys.clear();
+      this.input.fire = false;
+      this.lastBgT = performance.now();
+      this.bgLoop.reset();
+      this.bgTicker.start();
+    } else {
+      this.bgTicker.stop();
+      this.lastT = performance.now();
+      this.loop.reset();
+    }
+  }
+
+  private backgroundTick(): void {
+    const now = performance.now();
+    const dt = (now - this.lastBgT) / 1000;
+    this.lastBgT = now;
+    if (this.paused) return;
+    this.bgLoop.advance(dt, (h) => this.tick(h), 1);
   }
 
   setPaused(p: boolean): void {

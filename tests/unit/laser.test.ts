@@ -71,6 +71,17 @@ describe('CuttingLaser', () => {
   });
 });
 
+describe('FixedLoop background catch-up', () => {
+  it('maxDt lets a throttled background tick catch up more than 0.25 s', () => {
+    const loop = new FixedLoop(60, 60);
+    expect(loop.advance(1, () => {}, 1)).toBeGreaterThanOrEqual(59);
+    const small = new FixedLoop(60, 60);
+    expect(small.advance(1, () => {})).toBeLessThanOrEqual(15);
+    small.reset();
+    expect(small.advance(1, () => {})).toBeGreaterThanOrEqual(14);
+  });
+});
+
 describe('FixedLoop', () => {
   it('runs fixed steps and bounds catch-up', () => {
     const loop = new FixedLoop(60, 5);

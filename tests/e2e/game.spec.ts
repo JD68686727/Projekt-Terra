@@ -262,6 +262,24 @@ test('autopilot fires Pulse and Drill by itself with the Auto upgrades', async (
   expect(errors).toEqual([]);
 });
 
+test('simulation keeps running in the background when the tab is hidden', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page);
+  // Stop rAF entirely (what a hidden tab does) and let only the background ticker drive the game.
+  const t0 = await page.evaluate(() => {
+    const g = window.__game!;
+    g.stop();
+    g.setBackground(true);
+    return g.playTime;
+  });
+  await page.waitForTimeout(2000);
+  const t1 = await page.evaluate(() => window.__game!.playTime);
+  expect(t1 - t0).toBeGreaterThan(1.2);
+  expect(t1 - t0).toBeLessThan(3);
+  await page.evaluate(() => window.__game!.setBackground(false));
+  expect(errors).toEqual([]);
+});
+
 test('progress survives a page reload (IndexedDB) and Continue restores it', async ({ page }) => {
   const errors = collectErrors(page);
   await start(page, URL + '?seed=4242');

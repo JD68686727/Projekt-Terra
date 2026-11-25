@@ -15,10 +15,10 @@ export class FixedLoop {
   /**
    * Advances by a real-time delta (seconds), calling tick() for each step.
    * Returns the number of steps run. Excess time beyond maxSteps is dropped
-   * so a long stall never causes a spiral of death.
+   * so a long stall never causes a spiral of death. `maxDt` caps one call's time.
    */
-  advance(dt: number, tick: (step: number) => void): number {
-    this.acc += Math.min(Math.max(dt, 0), 0.25);
+  advance(dt: number, tick: (step: number) => void, maxDt = 0.25): number {
+    this.acc += Math.min(Math.max(dt, 0), maxDt);
     let n = 0;
     while (this.acc >= this.step && n < this.maxSteps) {
       tick(this.step);

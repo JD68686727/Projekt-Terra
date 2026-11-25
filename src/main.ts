@@ -112,9 +112,11 @@ async function boot(): Promise<void> {
 
   const applyPause = () => {
     if (!game) return;
-    const p = userPaused || blockingOverlay || document.hidden;
+    // A hidden tab keeps simulating in the background (silently); menus and the pause screen still stop it.
+    const p = userPaused || blockingOverlay;
     game.setPaused(p);
-    game.sfx.suspend(p);
+    game.setBackground(document.hidden);
+    game.sfx.suspend(p || document.hidden);
   };
 
   const setUserPause = (p: boolean) => {
