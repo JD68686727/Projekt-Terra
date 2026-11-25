@@ -162,6 +162,7 @@ export class Game {
     if (opts.carry) {
       for (const id of ECHO_IDS) this.progression.levels[id] = opts.carry.levels[id] ?? 0;
       this.progression.echo = opts.carry.echo;
+      if (this.progression.levels.echoMemory > 0) this.progression.levels.autoTarget = 1;
       this.progression.mp += this.progression.echoStartMp();
     }
     this.laser = new CuttingLaser(this.progression.laserStats());

@@ -35,7 +35,10 @@ export type UpgradeId =
   | 'echoStart'
   | 'echoLaser'
   | 'echoDrone'
-  | 'echoRf';
+  | 'echoRf'
+  | 'echoBlast'
+  | 'echoEmitter'
+  | 'echoMemory';
 
 export type UpgradeGroup = 'laser' | 'pulse' | 'drill' | 'nano' | 'fracture' | 'resonance' | 'auto' | 'core' | 'echo';
 export type Currency = 'mp' | 'rf' | 'echo';
@@ -93,10 +96,13 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'echoStart', group: 'echo', name: 'Echo-Vorrat', desc: 'Neue Welten starten mit Material Points', baseCost: 4, growth: 2.0, maxLevel: 5, currency: 'echo' },
   { id: 'echoDrone', group: 'echo', name: 'Echo-Antrieb', desc: 'Permanent +10 % Fluggeschwindigkeit', baseCost: 5, growth: 1.9, maxLevel: 5, currency: 'echo' },
   { id: 'echoRf', group: 'echo', name: 'Echo-Resonanz', desc: 'Permanent +25 % Resonance Fragments', baseCost: 6, growth: 1.9, maxLevel: 5, currency: 'echo' },
+  { id: 'echoBlast', group: 'echo', name: 'Echo-Sprengkraft', desc: 'Permanent +20 % Schaden von Pulse, Bohrer, Nano und Bruchladung', baseCost: 5, growth: 1.8, maxLevel: 8, currency: 'echo' },
+  { id: 'echoEmitter', group: 'echo', name: 'Echo-Emitter', desc: 'Permanent +30 % Emitter-Schaden', baseCost: 4, growth: 1.8, maxLevel: 5, currency: 'echo' },
+  { id: 'echoMemory', group: 'echo', name: 'Echo-Gedächtnis', desc: 'Autopilot ist in jeder neuen Welt sofort freigeschaltet', baseCost: 12, growth: 1, maxLevel: 1, currency: 'echo' },
 ];
 
 /** Upgrades that carry over into each new world (Echo). */
-export const ECHO_IDS: readonly UpgradeId[] = ['echoMp', 'echoLaser', 'echoStart', 'echoDrone', 'echoRf'];
+export const ECHO_IDS: readonly UpgradeId[] = ['echoMp', 'echoLaser', 'echoStart', 'echoDrone', 'echoRf', 'echoBlast', 'echoEmitter', 'echoMemory'];
 
 export const UPGRADE_BY_ID: Readonly<Record<UpgradeId, UpgradeDef>> = Object.fromEntries(
   UPGRADES.map((u) => [u.id, u]),

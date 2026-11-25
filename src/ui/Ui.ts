@@ -75,6 +75,7 @@ export class Ui {
   private readonly walletMp: HTMLElement;
   private readonly walletRf: HTMLElement;
   private readonly walletEcho: HTMLElement;
+  private readonly menuEcho: HTMLElement;
   private readonly goalEl: HTMLElement;
   private readonly tabBtns = new Map<string, HTMLButtonElement>();
   private readonly groupHeads: HTMLElement[] = [];
@@ -139,7 +140,9 @@ export class Ui {
       'Maus / Leertaste: andere Waffen auslösen oder Laser manuell zielen<br>' +
       '1–5 / Q: Waffe · U: Upgrades · T: Autopilot · E: Emitter<br>Mausrad: Zoom · Esc: Pause · M: Ton · F3: Performance<br>' +
       '<span style="color:#29d8f0">Laser auf Kristalle → Kettenreaktion → Resonance Fragments</span>';
-    m.append(hint, el('div', 'hint', `v${GAME_VERSION}`));
+    this.menuEcho = el('div', 'menu-echo hidden');
+    this.menuEcho.id = 'menu-echo';
+    m.append(this.menuEcho, hint, el('div', 'hint', `v${GAME_VERSION}`));
     this.menu.append(m);
 
     // Pause menu with settings
@@ -401,6 +404,12 @@ export class Ui {
   }
 
   /** Shows/hides the main menu; `hasSave` toggles the Continue button. */
+  /** Shows the saved Echo level/fragments in the main menu. */
+  setMenuEcho(prestige: number, fragments: number): void {
+    this.menuEcho.classList.toggle('hidden', prestige === 0 && fragments === 0);
+    this.menuEcho.textContent = `ECHO ${prestige} · ${Math.floor(fragments)} Fragmente`;
+  }
+
   showMenu(show: boolean, hasSave = false): void {
     this.menu.classList.toggle('hidden', !show);
     this.root.querySelector('#btn-continue')!.classList.toggle('hidden', !hasSave);

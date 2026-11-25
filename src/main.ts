@@ -90,6 +90,7 @@ async function boot(): Promise<void> {
 
   progress(1);
   loading.classList.add('hidden');
+  if (loaded) ui.setMenuEcho(loaded.prestige, loaded.progression.echo ?? 0);
   ui.showMenu(true, loaded !== null);
 
   let game: Game | null = null;

@@ -449,3 +449,4 @@ html, body {
 @keyframes goalPulse { 50% { box-shadow: 0 0 12px rgba(255, 211, 106, 0.7); } }
 .w-echo { color: #d58cff; }
 .upgrade-buy.echo { background: linear-gradient(180deg, rgba(213, 140, 255, 0.3), rgba(213, 140, 255, 0.1)); border-color: #d58cff; }
+.menu-echo { color: #d58cff; letter-spacing: 0.1em; font-size: 14px; margin: 6px 0; }

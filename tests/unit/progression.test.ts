@@ -132,4 +132,14 @@ describe('Echo', () => {
     p.prestige = 2;
     expect(p.echoAward(5)).toBe(12);
   });
+  it('new Echo upgrades scale secondary weapons and emitter', () => {
+    const p = new Progression();
+    const d0 = p.pulseStats().damage;
+    const e0 = p.emitterStats().dps;
+    p.levels.echoBlast = 5;
+    p.levels.echoEmitter = 2;
+    expect(p.pulseStats().damage).toBeCloseTo(d0 * 2);
+    expect(p.drillStats().power).toBeCloseTo(60 * 2);
+    expect(p.emitterStats().dps).toBeCloseTo(e0 * 1.6);
+  });
 });

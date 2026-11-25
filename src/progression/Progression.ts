@@ -114,7 +114,7 @@ export class Progression {
   }
 
   emitterStats(): EmitterStats {
-    return { dps: 90 * Math.pow(1.3, this.levels.emitterPower), range: 40 };
+    return { dps: 90 * Math.pow(1.3, this.levels.emitterPower) * (1 + 0.3 * this.levels.echoEmitter), range: 40 };
   }
 
   mpMultiplier(): number {
@@ -143,7 +143,7 @@ export class Progression {
     const l = this.levels;
     return {
       speed: 70,
-      power: 60 * Math.pow(1.35, l.drillPower),
+      power: 60 * Math.pow(1.35, l.drillPower) * (1 + 0.2 * l.echoBlast),
       depth: 25 + 12 * l.drillDepth,
       splits: l.drillSplit,
       radius: l.drillPower >= 5 ? 1 : 0,
@@ -158,7 +158,7 @@ export class Progression {
 
   swarmStats(): SwarmStats {
     const l = this.levels;
-    return { count: Math.min(64, 6 + 3 * l.nanoCount), dps: 25 * Math.pow(1.3, l.nanoPower), leash: 18 + 5 * l.nanoLeash, speed: 22 };
+    return { count: Math.min(64, 6 + 3 * l.nanoCount), dps: 25 * Math.pow(1.3, l.nanoPower) * (1 + 0.2 * l.echoBlast), leash: 18 + 5 * l.nanoLeash, speed: 22 };
   }
 
   fractureUnlocked(): boolean {
@@ -170,7 +170,7 @@ export class Progression {
     return {
       // Energy (decay) shapes the crater; maxCells is only a safety cap.
       maxCells: Math.round(900 * Math.pow(1.5, l.fractureReach)),
-      damage: 400 * Math.pow(1.4, l.fractureDamage),
+      damage: 400 * Math.pow(1.4, l.fractureDamage) * (1 + 0.2 * l.echoBlast),
       decay: 0.1 * Math.pow(0.86, l.fractureReach),
       fuse: 1.2,
       cooldown: 6 * Math.pow(0.85, l.fractureCooldown),
@@ -185,7 +185,7 @@ export class Progression {
   pulseStats(): PulseStats {
     const l = this.levels;
     return {
-      damage: 70 * Math.pow(1.35, l.pulseDamage),
+      damage: 70 * Math.pow(1.35, l.pulseDamage) * (1 + 0.2 * l.echoBlast),
       radius: 6 + 2 * l.pulseRadius,
       cooldown: 1.6 * Math.pow(0.85, l.pulseCooldown),
       range: 50 + 6 * l.pulseRadius,
