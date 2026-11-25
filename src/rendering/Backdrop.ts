@@ -191,11 +191,7 @@ export class Backdrop {
    */
   private layerSprite(c: Canvas, baseOffsetCells: number, smooth = false): Container {
     const root = new Container();
-    const s = new TilingSprite({ texture: tex(c.w, c.h, c.px, smooth), width: this.width * 3 * ART, height: c.h });
-    s.scale.set(1 / ART);
-    s.x = -this.width;
-    s.y = this.horizon - c.h / ART + baseOffsetCells;
-    // Solid fill in the average colour of the bottom row (the row itself is dithered).
+    // Average colour/alpha of the bottom row (the row itself is dithered).
     let r = 0, g = 0, bl = 0, al = 0, n = 0;
     const base = (c.h - 1) * c.w * 4;
     for (let x = 0; x < c.w; x++) {
@@ -203,13 +199,48 @@ export class Backdrop {
       al += a;
       if (a > 0) { r += c.px[base + x * 4]; g += c.px[base + x * 4 + 1]; bl += c.px[base + x * 4 + 2]; n++; }
     }
-    const fill = new Uint8Array([n ? r / n : 0, n ? g / n : 0, n ? bl / n : 0, Math.round(al / c.w)]);
-    const SKIRT = 1400; // cells; covers the deepest camera parallax offset
-    const skirt = new TilingSprite({ texture: tex(1, 1, fill, smooth), width: this.width * 3 * ART, height: SKIRT * ART });
-    skirt.scale.set(1 / ART);
-    skirt.x = s.x;
-    skirt.y = this.horizon + baseOffsetCells;
-    root.addChild(skirt, s);
+    const fr = n ? r / n : 0, fg = n ? g / n : 0, fb = n ? bl / n : 0, fa = Math.round(al / c.w);
+    // Feather the layer's last rows into that colour so there is no visible bottom edge.
+    const FEATHER = 36 * ART;
+    for (let y = c.h - FEATHER; y < c.h; y++) {
+      const t0 = (y - (c.h - FEATHER)) / FEATHER;
+      const t = t0 * t0 * (3 - 2 * t0);
+      for (let x = 0; x < c.w; x++) {
+        const p = (y * c.w + x) * 4;
+        c.px[p] += (fr - c.px[p]) * t;
+        c.px[p + 1] += (fg - c.px[p + 1]) * t;
+        c.px[p + 2] += (fb - c.px[p + 2]) * t;
+        c.px[p + 3] += (fa - c.px[p + 3]) * t;
+      }
+    }
+    const s = new TilingSprite({ texture: tex(c.w, c.h, c.px, smooth), width: this.width * 3 * ART, height: c.h });
+    s.scale.set(1 / ART);
+    s.x = -this.width;
+    s.y = this.horizon - c.h / ART + baseOffsetCells;
+    // Skirt: continues the layer downwards, fading softly into deep fog (it blends with the terrain's dark depths).
+    const GRAD = 512;
+    const col = new Uint8Array(GRAD * 4);
+    for (let y = 0; y < GRAD; y++) {
+      const t0 = y / (GRAD - 1);
+      const t = t0 * t0 * (3 - 2 * t0);
+      col[y * 4] = fr + (0x14 - fr) * t;
+      col[y * 4 + 1] = fg + (0x0b - fg) * t;
+      col[y * 4 + 2] = fb + (0x20 - fb) * t;
+      col[y * 4 + 3] = fa + (255 - fa) * t;
+    }
+    const GRAD_CELLS = 140;
+    const grad = new Sprite(tex(1, GRAD, col, true));
+    grad.x = s.x;
+    grad.y = this.horizon + baseOffsetCells;
+    grad.width = this.width * 3;
+    grad.height = GRAD_CELLS;
+    const solidPx = new Uint8Array([0x14, 0x0b, 0x20, 255]);
+    const solid = new Sprite(tex(1, 1, solidPx));
+    solid.x = s.x;
+    solid.y = grad.y + GRAD_CELLS;
+    solid.width = this.width * 3;
+    solid.height = 1400;
+    root.addChild(solid, grad, s);
     return root;
   }
 
