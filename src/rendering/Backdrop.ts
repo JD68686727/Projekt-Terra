@@ -185,15 +185,35 @@ export class Backdrop {
   private static readonly BARK = [0x140e1c, 0x2a1d36, 0x46324f];
   private static readonly GLOW = [0xb8fff0, 0x3ff0d0];
 
-  private layerSprite(c: Canvas, baseOffsetCells: number, smooth = false): TilingSprite {
+  /**
+   * The layer plus a skirt: the bottom pixel row stretched downwards, so no gap/edge shows
+   * between the layer and the terrain (valleys below the horizon, camera parallax moving up).
+   */
+  private layerSprite(c: Canvas, baseOffsetCells: number, smooth = false): Container {
+    const root = new Container();
     const s = new TilingSprite({ texture: tex(c.w, c.h, c.px, smooth), width: this.width * 3 * ART, height: c.h });
     s.scale.set(1 / ART);
     s.x = -this.width;
     s.y = this.horizon - c.h / ART + baseOffsetCells;
-    return s;
+    // Solid fill in the average colour of the bottom row (the row itself is dithered).
+    let r = 0, g = 0, bl = 0, al = 0, n = 0;
+    const base = (c.h - 1) * c.w * 4;
+    for (let x = 0; x < c.w; x++) {
+      const a = c.px[base + x * 4 + 3];
+      al += a;
+      if (a > 0) { r += c.px[base + x * 4]; g += c.px[base + x * 4 + 1]; bl += c.px[base + x * 4 + 2]; n++; }
+    }
+    const fill = new Uint8Array([n ? r / n : 0, n ? g / n : 0, n ? bl / n : 0, Math.round(al / c.w)]);
+    const SKIRT = 1400; // cells; covers the deepest camera parallax offset
+    const skirt = new TilingSprite({ texture: tex(1, 1, fill, smooth), width: this.width * 3 * ART, height: SKIRT * ART });
+    skirt.scale.set(1 / ART);
+    skirt.x = s.x;
+    skirt.y = this.horizon + baseOffsetCells;
+    root.addChild(skirt, s);
+    return root;
   }
 
-  private layerFarMountains(): TilingSprite {
+  private layerFarMountains(): Container {
     const c = canvas(RIDGE_PERIOD * ART, 120 * ART);
     const p = haze(Backdrop.ROCK, Backdrop.HAZE, 0.62);
     softMountains(c, c.h - 2, 92 * ART, [p[1], p[2], p[3], p[4]], this.seed ^ 0xa1);
@@ -205,7 +225,7 @@ export class Backdrop {
    * Rock formations with vegetation. 'secondary' = hazy, simplified (shrubs
    * only); 'mid' = full detail (trees, shrubs, glow plants).
    */
-  private layerFormations(salt: number, hazeT: number, maxHCells: number, count: number, offset: number, kind: 'secondary' | 'mid'): TilingSprite {
+  private layerFormations(salt: number, hazeT: number, maxHCells: number, count: number, offset: number, kind: 'secondary' | 'mid'): Container {
     const c = canvas(RIDGE_PERIOD * ART, (maxHCells + 30) * ART);
     const seed = this.seed ^ salt;
     const rock = haze(Backdrop.ROCK, Backdrop.HAZE, hazeT) as unknown as Pal5;
