@@ -21,7 +21,7 @@ export class Progression {
   totalRf = 0;
   /** Echo fragments (earned by breaking a world, spent on permanent Echo upgrades). */
   echo = 0;
-  /** Completed runs; each grants a permanent +50 % MP bonus. */
+  /** Completed runs; each grants a permanent +25 % MP bonus. */
   prestige = 0;
   readonly levels: Record<UpgradeId, number>;
   onChange: (() => void) | null = null;
@@ -118,7 +118,7 @@ export class Progression {
   }
 
   mpMultiplier(): number {
-    return (1 + 0.25 * this.levels.mpMultiplier) * (1 + 0.5 * this.prestige) * (1 + 0.2 * this.levels.echoMp);
+    return (1 + 0.25 * this.levels.mpMultiplier) * (1 + 0.25 * this.prestige) * (1 + 0.2 * this.levels.echoMp);
   }
 
   droneSpeed(): number {

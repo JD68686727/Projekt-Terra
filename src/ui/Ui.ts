@@ -484,7 +484,7 @@ export class Ui {
       this.handlers.onEchoShop();
     });
     const nextCores = Math.min(MAX_CORES, game.cores.length + 1);
-    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: ${biomeFor(game.progression.prestige + 1).name}, ${nextCores} KERNE, ${worldHeightFor(game.progression.prestige + 1)} M TIEF, +50 % MP)`);
+    const nw = el('button', 'btn', `NEUE WELT (ECHO ${game.progression.prestige + 1}: ${biomeFor(game.progression.prestige + 1).name}, ${nextCores} KERNE, ${worldHeightFor(game.progression.prestige + 1)} M TIEF, +25 % MP)`);
     nw.id = 'btn-new-world';
     nw.addEventListener('click', () => {
       v.classList.add('hidden');

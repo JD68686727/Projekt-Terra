@@ -380,7 +380,7 @@ test('destroying all resonance cores shows the final screen; new world grants pr
   await page.waitForFunction(() => window.__game && window.__game.progression.prestige === 1);
   await expect(page.locator('#loading')).toBeHidden();
   // Echo carries over; the new world has one more core.
-  expect(await page.evaluate(() => window.__game!.progression.mpMultiplier())).toBeCloseTo(1.8);
+  expect(await page.evaluate(() => window.__game!.progression.mpMultiplier())).toBeCloseTo(1.5);
   expect(await page.evaluate(() => window.__game!.progression.echo)).toBe(3);
   expect(await page.evaluate(() => window.__game!.cores.length)).toBe(4);
   await expect(page.locator('#hud-goal')).toContainText('0/4');

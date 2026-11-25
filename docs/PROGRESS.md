@@ -115,3 +115,9 @@ Next: M2 (see docs/TASKS.md).
 - New materials (ids appended): `Glutstein` (7, Rote Wüste: fewer crystals, red ember veins; sparks a blast with higher chance than Unstable Ore) and `GoldVein` (8, Goldene Kruste: hard, 45 MP, more dense rock). Dschungel/Eiswelt have no biome ore yet (planned after a pacing bot for Echo worlds exists).
 - Generator: `WorldSpec.echo` selects the biome (`echo % BIOME_COUNT`); Echo 0 output is byte-identical. Saves of Echo worlds are stamped generator 3; older Echo saves (generator < 3) regenerate untouched terrain the old way (`Game.legacyGenerator`).
 - Verified visually (Chrome/SwiftShader screenshots), 123 unit tests. Not verified: balance (value/durability/vein density vs pacing), real devices.
+
+## Echo pacing bot + calibration
+- `tests/helpers/pacing.ts` (shared bot; supports Echo level, carry-over and separate generator echo) + `tests/unit/pacing-echo.test.ts`: regression guard for Echo 0–2 (always runs, ~10 s) and the long campaign (`PACING_ECHO=6 npx vitest run tests/unit/pacing-echo.test.ts`).
+- First measurement showed Echo worlds got *shorter* (Echo 1: 13 min vs 39): prestige +50 % MP compounded, and Glutstein added on top of Unstable Ore (blast chains). Fixes: prestige MP +25 %/Echo; Glutstein *replaces* Unstable Ore in the Rote Wüste (chance ×1.2); Gold value 28; core shields scale +50 % per Echo (`SHIELD_PER_ECHO`) with tiers `[1,3,6,10,16,26]`.
+- Bot minutes (seed 1337, greedy upgrades, spends Echo fragments): Echo 0–5 = 39, 40, 59, 77, 62, 77. Bot = manual-style play, not the Autopilot; real playtime will differ.
+- `Game` now takes `opts.echo` (terrain/shield generation level); older saves (generator < 3) keep the old terrain.

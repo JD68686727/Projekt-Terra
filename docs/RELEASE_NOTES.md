@@ -10,7 +10,7 @@ First complete build. Final title still pending.
 - Automation: auto-targeting laser with material recognition, placeable laser emitters.
 - World 1024×2048 with caves, veins, titanium bands and hidden vaults.
 - Three resonance cores, deeper ones larger and shielded (×1 / ×3 / ×6); ending after the third core.
-- Replay: "New world" with Echo level (+50 % MP per level).
+- Replay: "New world" with Echo level (+25 % MP per level).
 
 **Platform**
 - Static HTML5 build (≈0.6 MB, 0.18 MB zipped), relative URLs, works in sub-paths and iframes, no backend/CDN.

@@ -158,7 +158,7 @@ async function boot(): Promise<void> {
     // Saves from before the biome ores (generator < 3) must regenerate their untouched terrain the old way.
     const echoGen = data && data.generator < 3 ? 0 : prestige;
     const mats = await generateMaterialsAsync({ width, height, seed, cores, echo: echoGen }, (p) => progress(p * 0.9));
-    const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores, carry: data ? undefined : carry, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
+    const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores, carry: data ? undefined : carry, echo: echoGen, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
     if (data) {
       if (data.generator !== generatorVersion(data.prestige)) {
         ui.toast('Spielstand aus einer älteren Weltversion: Unberührte Bereiche wurden neu erzeugt.', false, 7000);

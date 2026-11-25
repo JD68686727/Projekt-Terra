@@ -105,6 +105,6 @@ describe('Glutstein', () => {
       }
       return n;
     };
-    expect(hits(Mat.Glutstein)).toBeGreaterThan(hits(Mat.UnstableOre) * 1.3);
+    expect(hits(Mat.Glutstein)).toBeGreaterThan(hits(Mat.UnstableOre) * 1.1);
   });
 });

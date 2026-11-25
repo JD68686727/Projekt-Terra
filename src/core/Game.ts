@@ -47,6 +47,8 @@ export interface GameOptions {
   detail?: number;
   /** Completed runs (permanent bonus). */
   prestige?: number;
+  /** Echo level used for terrain generation, biome ores and core shields (0 = original). */
+  echo?: number;
   /** Echo carry-over into a new world (Echo upgrade levels + fragments). */
   carry?: { levels: Partial<Record<UpgradeId, number>>; echo: number };
 }
@@ -125,10 +127,10 @@ export class Game {
   victorySeen = false;
   /** Version stamp of the terrain generator used for this world. */
   get generatorVersion(): number {
-    return this.legacyGenerator ? 2 : generatorVersion(this.progression.prestige);
+    return generatorVersion(this.genEcho);
   }
-  /** True when an older save (generator < 3) was loaded: its untouched terrain was generated without biome ores. */
-  legacyGenerator = false;
+  /** Echo level the terrain was generated with (0 for saves from before the biome ores). */
+  private genEcho = 0;
   /** Echo fragments awarded by the victory (for the victory screen). */
   echoGained = 0;
   /** Fired once when every core is destroyed. */
@@ -167,6 +169,7 @@ export class Game {
   constructor(app: Application, opts: GameOptions) {
     this.app = app;
     this.progression.prestige = opts.prestige ?? 0;
+    this.genEcho = opts.echo ?? 0;
     if (opts.carry) {
       for (const id of ECHO_IDS) this.progression.levels[id] = opts.carry.levels[id] ?? 0;
       this.progression.echo = opts.carry.echo;
@@ -179,12 +182,12 @@ export class Game {
     this.nano = new NanoSwarm(this.progression.swarmStats());
     this.world = new World(opts.worldWidth, opts.worldHeight, opts.seed);
     if (opts.mats) this.world.loadMaterials(opts.mats);
-    else generateWorld(this.world, { cores: opts.cores });
+    else generateWorld(this.world, { cores: opts.cores, echo: opts.echo });
     this.fracture = new FractureCharge(this.world, this.progression.fractureStats());
-    for (const site of vaultSites({ width: opts.worldWidth, height: opts.worldHeight, seed: opts.seed, cores: opts.cores })) {
+    for (const site of vaultSites({ width: opts.worldWidth, height: opts.worldHeight, seed: opts.seed, cores: opts.cores, echo: opts.echo })) {
       this.vaults.push({ site, found: false });
     }
-    for (const site of coreSites({ width: opts.worldWidth, height: opts.worldHeight, seed: opts.seed, cores: opts.cores })) {
+    for (const site of coreSites({ width: opts.worldWidth, height: opts.worldHeight, seed: opts.seed, cores: opts.cores, echo: opts.echo })) {
       const total = countCoreCells(this.world, site);
       this.cores.push({ site, total, remaining: total });
     }
@@ -800,7 +803,6 @@ export class Game {
 
   /** Restores a validated save onto a world generated from the same seed/size. */
   applySave(d: SaveData): void {
-    this.legacyGenerator = d.generator < 3;
     const p = this.progression;
     p.mp = d.progression.mp;
     p.totalMp = d.progression.totalMp;

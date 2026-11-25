@@ -43,5 +43,5 @@ WASD fly (laser aims itself; hold mouse/Space to aim manually or fire other weap
 
 ## Full game (M5)
 - 3 resonance cores, shallow → deep, each larger and better shielded. Destroying all three ends the run.
-- After the ending: continue, or start a new world (Echo level +1 → permanent +50 % MP each).
+- After the ending: continue, or start a new world (Echo level +1 → permanent +25 % MP each; more cores, deeper world, stronger core shields (+50 % per Echo)).
 - Hidden vaults reward exploration (RF + MP once).

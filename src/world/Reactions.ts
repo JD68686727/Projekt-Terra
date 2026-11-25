@@ -77,7 +77,7 @@ export class Reactions {
   onDestroyed(x: number, y: number, m: Mat): void {
     if (m === Mat.UnstableOre && this.chance() < this.stats.oreChance) this.queueBlast(x + 0.5, y + 0.5);
     // Glutstein sparks more reliably than Unstable Ore (Rote Wüste: Zündschnur).
-    else if (m === Mat.Glutstein && this.chance() < Math.min(1, this.stats.oreChance * 1.5 + 0.25)) this.queueBlast(x + 0.5, y + 0.5);
+    else if (m === Mat.Glutstein && this.chance() < Math.min(1, this.stats.oreChance * 1.2)) this.queueBlast(x + 0.5, y + 0.5);
   }
 
   private charge(x: number, y: number, depth: number): void {

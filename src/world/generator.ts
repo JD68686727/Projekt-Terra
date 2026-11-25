@@ -65,7 +65,7 @@ export function coreSites(spec: WorldSpec): CoreSite[] {
     const x = Math.floor(width * fx);
     const y = Math.floor(top + (height - top) * fy);
     out.push({
-      shield: CORE_SHIELDS[Math.min(i, CORE_SHIELDS.length - 1)],
+      shield: CORE_SHIELDS[Math.min(i, CORE_SHIELDS.length - 1)] * (1 + SHIELD_PER_ECHO * (spec.echo ?? 0)),
       x: Math.min(width - shell - 5, Math.max(shell + 5, x)),
       y: Math.min(height - shell - 5, y),
       radius,
@@ -95,15 +95,16 @@ function baseMaterial(x: number, y: number, height: number, seed: number, surfac
   // Biome 1 (Rote Wüste): crystals are rarer. Biome 4 (Goldene Kruste): harder rock.
   const crystalCut = biome === 1 ? 0.992 : 0.985;
   if (cv > crystalCut - depth * 0.02 && valueNoise(x / 45, y / 45, seed ^ 0xc41) > 0.36) return Mat.ResonanceCrystal;
-  if (biome === 1 || biome === 4) {
-    const gv = 1 - Math.abs(fbm(wx / 24, wy / 30, seed ^ (biome === 1 ? 0x61a5 : 0x601d), 2) * 2 - 1);
-    const cut = biome === 1 ? 0.972 : 0.976;
-    if (gv > cut - depth * 0.015 && valueNoise(x / 34, y / 34, seed ^ 0x6e1) > 0.4) return biome === 1 ? Mat.Glutstein : Mat.GoldVein;
+  if (biome === 4) {
+    const gv = 1 - Math.abs(fbm(wx / 24, wy / 30, seed ^ 0x601d, 2) * 2 - 1);
+    if (gv > 0.978 - depth * 0.015 && valueNoise(x / 34, y / 34, seed ^ 0x6e1) > 0.4) return Mat.GoldVein;
   }
   const ov = 1 - Math.abs(fbm(wy / 20, wx / 28, seed ^ 0x0e0e, 2) * 2 - 1);
-  if (ov > 0.984 - depth * 0.015 && valueNoise(x / 30, y / 30, seed ^ 0x0e1) > 0.42) return Mat.UnstableOre;
+  // Biome 1 (Rote Wüste): the explosive veins are Glutstein instead of Unstable Ore.
+  const explosive = biome === 1 ? Mat.Glutstein : Mat.UnstableOre;
+  if (ov > 0.984 - depth * 0.015 && valueNoise(x / 30, y / 30, seed ^ 0x0e1) > 0.42) return explosive;
   // Ore nodules strung along a few veins.
-  if (ov > 0.93 && hash01(x >> 1, y >> 1, seed ^ 0x0e2) > 0.95) return Mat.UnstableOre;
+  if (ov > 0.93 && hash01(x >> 1, y >> 1, seed ^ 0x0e2) > 0.95) return explosive;
   const t = depth + (hash01(x, y, seed ^ 0xd3) - 0.5) * 0.15 + (fbm(x / 30, y / 30, seed ^ 0xde, 2) - 0.5) * 0.4;
   return t > (biome === 4 ? 0.18 : 0.35) ? Mat.DenseRock : Mat.Stone;
 }
@@ -181,8 +182,11 @@ function stampCore(out: Uint8Array, width: number, height: number, seed: number,
   }
 }
 
+/** Extra shield per Echo level (multiplier on top of the per-core shield). */
+export const SHIELD_PER_ECHO = 0.5;
+
 /** Damage divisor per core index (deeper cores are shielded harder). */
-export const CORE_SHIELDS = [1, 3, 6, 9, 12, 16];
+export const CORE_SHIELDS = [1, 3, 6, 10, 16, 26];
 
 /**
  * Returns a lookup used by World.damage for Core Material cells: the shield
@@ -206,6 +210,6 @@ export function countCoreCells(world: World, site: CoreSite): number {
 }
 
 /** Synchronous generation (tests, fallback). */
-export function generateWorld(world: World, opts: { cores?: number } = {}): void {
-  world.loadMaterials(generateMaterials({ width: world.width, height: world.height, seed: world.seed, cores: opts.cores ?? 0 }));
+export function generateWorld(world: World, opts: { cores?: number; echo?: number } = {}): void {
+  world.loadMaterials(generateMaterials({ width: world.width, height: world.height, seed: world.seed, cores: opts.cores ?? 0, echo: opts.echo }));
 }
