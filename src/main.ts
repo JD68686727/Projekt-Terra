@@ -8,7 +8,7 @@ import { createPlatformAdapter } from './platform/PlatformAdapter';
 import { GAME_TITLE, CORE_COUNT, coreCountFor, worldHeightFor, DEFAULT_WORLD_WIDTH } from './config/meta';
 import { biomeFor } from './rendering/biome';
 import { generateMaterialsAsync } from './world/generateAsync';
-import { GENERATOR_VERSION } from './world/generator';
+import { generatorVersion } from './world/generator';
 import { createSaveStore, SaveStore } from './storage/SaveStore';
 import type { SaveData } from './storage/saveFormat';
 import { ECHO_IDS, type UpgradeId } from './progression/upgrades';
@@ -155,10 +155,12 @@ async function boot(): Promise<void> {
     loading.classList.remove('hidden');
     progress(0);
     const cores = data ? (data.cores ?? CORE_COUNT) : coreCountFor(prestige);
-    const mats = await generateMaterialsAsync({ width, height, seed, cores }, (p) => progress(p * 0.9));
+    // Saves from before the biome ores (generator < 3) must regenerate their untouched terrain the old way.
+    const echoGen = data && data.generator < 3 ? 0 : prestige;
+    const mats = await generateMaterialsAsync({ width, height, seed, cores, echo: echoGen }, (p) => progress(p * 0.9));
     const g = new Game(app, { worldWidth: width, worldHeight: height, seed, cores, carry: data ? undefined : carry, mats, particles: preset.particles, bloom: settings.quality !== 'low', detail: settings.quality === 'low' ? 2 : 4, prestige });
     if (data) {
-      if (data.generator !== GENERATOR_VERSION) {
+      if (data.generator !== generatorVersion(data.prestige)) {
         ui.toast('Spielstand aus einer älteren Weltversion: Unberührte Bereiche wurden neu erzeugt.', false, 7000);
       }
       try {

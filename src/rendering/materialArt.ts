@@ -17,6 +17,8 @@ export const PALETTES: Record<number, Palette> = {
   [Mat.DenseRock]: [0x14131c, 0x1d1c28, 0x292737, 0x363347, 0x4b475e],
   [Mat.ResonanceCrystal]: [0x0a3a52, 0x11698a, 0x1ca6c6, 0x58e3f6, 0xd6ffff],
   [Mat.UnstableOre]: [0x2a1712, 0x43231a, 0xa8401a, 0xff8a2a, 0xffd37a],
+  [Mat.Glutstein]: [0x2a0810, 0x5c1218, 0xb82a26, 0xff5a3c, 0xffd0a8],
+  [Mat.GoldVein]: [0x4a3410, 0x8a6418, 0xd2a228, 0xf6d457, 0xfff6c0],
   [Mat.TitaniumMatrix]: [0x2a303e, 0x454f66, 0x63718c, 0x8fa0ba, 0xd2deec],
   [Mat.CoreMaterial]: [0x2c0740, 0x5a1080, 0x962cc8, 0xd277ff, 0xffd6ff],
 };
@@ -95,6 +97,22 @@ export function subStep(m: Mat, sx: number, sy: number, gx: number, gy: number, 
       if (g > 0.82) return 1;
       if (g > 0.7) return 2;
       return 3;
+    }
+    case Mat.Glutstein: {
+      // Cracked ember stone: dark crust with glowing fissures and flying sparks.
+      const crack = valueNoise(sx / (5 * D), sy / (5 * D), seed ^ 0xa1) + valueNoise(sx / (2.5 * D), sy / (2.5 * D), seed ^ 0xa2) * 0.5;
+      if (Math.abs(crack - 0.75) < 0.05) return 4;
+      if (Math.abs(crack - 0.75) < 0.12) return 3;
+      return hash01(sx >> 1, sy >> 1, seed ^ 0xa3) > 0.7 ? 2 : 1;
+    }
+    case Mat.GoldVein: {
+      // Nuggets: bright rounded blobs with a highlight on a dark rock matrix.
+      const bx = (sx / D) | 0;
+      const by = (sy / D) | 0;
+      const n = valueNoise(sx / (3.5 * D), sy / (3.5 * D), seed ^ 0xb1);
+      if (n > 0.62) return hash01(bx, by, seed ^ 0xb2) > 0.8 ? 4 : 3;
+      if (n > 0.5) return 2;
+      return hash01(sx, sy, seed ^ 0xb3) > 0.97 ? 4 : 1;
     }
     case Mat.TitaniumMatrix: {
       // Riveted armour plates 8×6 cells, bevelled, with scratches.

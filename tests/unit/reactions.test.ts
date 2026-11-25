@@ -90,3 +90,21 @@ describe('Unstable ore', () => {
     expect(r.blasts).toBe(0);
   });
 });
+
+describe('Glutstein', () => {
+  it('sparks (queues a blast) more reliably than Unstable Ore', () => {
+    const hits = (mat: Mat) => {
+      const w = new World(64, 64, 1);
+      const r = new Reactions(w, { resonanceDepth: 5, oreChance: 0.3, oreRadius: 3, oreDamage: 50 });
+      let n = 0;
+      for (let i = 0; i < 400; i++) {
+        r.onDestroyed(10, 10, mat);
+        n += r.pending;
+        // drain
+        for (let k = 0; k < 8; k++) r.update();
+      }
+      return n;
+    };
+    expect(hits(Mat.Glutstein)).toBeGreaterThan(hits(Mat.UnstableOre) * 1.3);
+  });
+});

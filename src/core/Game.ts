@@ -1,7 +1,7 @@
 import { Application, Container, Graphics, Sprite } from 'pixi.js';
 import { SPRITE_SCALE, sprites } from '../rendering/sprites';
 import { World } from '../world/World';
-import { CoreSite, GENERATOR_VERSION, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
+import { CoreSite, generatorVersion, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
 import { ECHO_IDS, type UpgradeId } from '../progression/upgrades';
 import { MATERIALS, Mat } from '../world/materials';
@@ -123,6 +123,12 @@ export class Game {
   /** Seconds of unpaused play. */
   playTime = 0;
   victorySeen = false;
+  /** Version stamp of the terrain generator used for this world. */
+  get generatorVersion(): number {
+    return this.legacyGenerator ? 2 : generatorVersion(this.progression.prestige);
+  }
+  /** True when an older save (generator < 3) was loaded: its untouched terrain was generated without biome ores. */
+  legacyGenerator = false;
   /** Echo fragments awarded by the victory (for the victory screen). */
   echoGained = 0;
   /** Fired once when every core is destroyed. */
@@ -786,7 +792,7 @@ export class Game {
       vaults: this.vaults.map((v) => v.found),
       nano: this.nano.active ? { x: this.nano.anchorX, y: this.nano.anchorY } : null,
       fog: this.fog.encode(),
-      generator: GENERATOR_VERSION,
+      generator: this.generatorVersion,
       cores: this.cores.length,
       chunks: serializeChunks(this.world),
     };
@@ -794,6 +800,7 @@ export class Game {
 
   /** Restores a validated save onto a world generated from the same seed/size. */
   applySave(d: SaveData): void {
+    this.legacyGenerator = d.generator < 3;
     const p = this.progression;
     p.mp = d.progression.mp;
     p.totalMp = d.progression.totalMp;

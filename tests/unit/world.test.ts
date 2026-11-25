@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { World, CHUNK_SIZE } from '../../src/world/World';
-import { generateWorld } from '../../src/world/generator';
-import { MATERIALS, Mat } from '../../src/world/materials';
+import { generateMaterials, generateWorld } from '../../src/world/generator';
+import { MATERIALS, MATERIAL_COUNT, Mat } from '../../src/world/materials';
 import { hash2, fbm, mulberry32 } from '../../src/world/rng';
 
 function digest(w: World): number {
@@ -148,5 +148,51 @@ describe('coreSites with many cores (Echo worlds)', () => {
         }
       }
     }
+  });
+});
+
+describe('biome ores', () => {
+  const spec = { width: 512, height: 512, seed: 11, cores: 3 };
+  const count = (echo: number) => {
+    const m = generateMaterials({ ...spec, echo });
+    const c = new Array(MATERIAL_COUNT).fill(0);
+    for (const v of m) c[v]++;
+    return c;
+  };
+  it('Echo 0 world is unchanged by the echo field and has no biome ores', () => {
+    expect(generateMaterials({ ...spec, echo: 0 })).toEqual(generateMaterials(spec));
+    const c = count(0);
+    expect(c[Mat.Glutstein]).toBe(0);
+    expect(c[Mat.GoldVein]).toBe(0);
+  });
+  it('Rote Wüste has Glutstein and fewer crystals; Goldene Kruste has gold and more dense rock', () => {
+    const e0 = count(0);
+    const red = count(1);
+    const gold = count(4);
+    expect(red[Mat.Glutstein]).toBeGreaterThan(30);
+    expect(red[Mat.GoldVein]).toBe(0);
+    expect(red[Mat.ResonanceCrystal]).toBeLessThan(e0[Mat.ResonanceCrystal]);
+    expect(gold[Mat.GoldVein]).toBeGreaterThan(30);
+    expect(gold[Mat.DenseRock]).toBeGreaterThan(e0[Mat.DenseRock]);
+    // Dschungel / Eiswelt do not have biome ores yet.
+    expect(count(2)[Mat.Glutstein] + count(3)[Mat.GoldVein]).toBe(0);
+  });
+  it('biome ores are not overabundant', () => {
+    const solid = (c: number[]) => c.reduce((a, b) => a + b, 0) - c[Mat.Air];
+    expect(count(1)[Mat.Glutstein] / solid(count(1))).toBeLessThan(0.06);
+    expect(count(4)[Mat.GoldVein] / solid(count(4))).toBeLessThan(0.06);
+  });
+  it('biome count matches the renderer biomes', async () => {
+    const { BIOMES } = await import('../../src/rendering/biome');
+    const { BIOME_COUNT } = await import('../../src/world/generator');
+    expect(BIOMES.length).toBe(BIOME_COUNT);
+  });
+});
+
+describe('generator version stamps', () => {
+  it('Echo 0 keeps version 2 (old saves stay valid); Echo worlds use version 3', async () => {
+    const { generatorVersion } = await import('../../src/world/generator');
+    expect(generatorVersion(0)).toBe(2);
+    expect(generatorVersion(1)).toBe(3);
   });
 });

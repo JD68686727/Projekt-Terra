@@ -110,3 +110,8 @@ Next: M2 (see docs/TASKS.md).
 ## Echo depth
 - New worlds are 512 cells deeper per Echo (`worldHeightFor`: 2048 → 4096 cap), width stays 1024; victory button shows the next depth. Loaded saves keep their stored size.
 - Bench (headless SwiftShader, indicative only): 1024×2048 / 3072 / 4096 → boot ≈1.2–1.4 s, sim ≈0.3 ms, terrain ≈8–11 ms, heap ≈52 MB — no measurable growth with depth (chunks are lazy). Real GPU/mobile untested; save size of a deep, heavily dug world untested.
+
+## Biome ores
+- New materials (ids appended): `Glutstein` (7, Rote Wüste: fewer crystals, red ember veins; sparks a blast with higher chance than Unstable Ore) and `GoldVein` (8, Goldene Kruste: hard, 45 MP, more dense rock). Dschungel/Eiswelt have no biome ore yet (planned after a pacing bot for Echo worlds exists).
+- Generator: `WorldSpec.echo` selects the biome (`echo % BIOME_COUNT`); Echo 0 output is byte-identical. Saves of Echo worlds are stamped generator 3; older Echo saves (generator < 3) regenerate untouched terrain the old way (`Game.legacyGenerator`).
+- Verified visually (Chrome/SwiftShader screenshots), 123 unit tests. Not verified: balance (value/durability/vein density vs pacing), real devices.

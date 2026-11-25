@@ -7,6 +7,10 @@ export const enum Mat {
   UnstableOre = 4,
   TitaniumMatrix = 5,
   CoreMaterial = 6,
+  /** Echo biome ore (Rote Wüste): ignites neighbouring cells when destroyed. */
+  Glutstein = 7,
+  /** Echo biome ore (Goldene Kruste): very valuable, in hard rock. */
+  GoldVein = 8,
 }
 
 export interface MaterialDef {
@@ -32,6 +36,8 @@ export const MATERIALS: readonly MaterialDef[] = [
   { id: Mat.UnstableOre, name: 'Unstable Ore', durability: 30, value: 8, color: 0xf07a22, variation: 0.22, emissive: true },
   { id: Mat.TitaniumMatrix, name: 'Titanium Matrix', durability: 2500, value: 40, color: 0x8c9bb0, variation: 0.06, emissive: false },
   { id: Mat.CoreMaterial, name: 'Core Material', durability: 20000, value: 50, color: 0xd040ff, variation: 0.3, emissive: true },
+  { id: Mat.Glutstein, name: 'Glutstein', durability: 35, value: 14, color: 0xe03a30, variation: 0.22, emissive: true },
+  { id: Mat.GoldVein, name: 'Gold Vein', durability: 90, value: 45, color: 0xf2c33c, variation: 0.18, emissive: false },
 ];
 
 export const MATERIAL_COUNT = MATERIALS.length;

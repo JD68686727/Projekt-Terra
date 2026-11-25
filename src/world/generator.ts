@@ -5,6 +5,13 @@ import { fbm, hash01, valueNoise } from './rng';
 export const SKY_FRACTION = 0.2;
 /** Bump when terrain generation changes (stored in saves). */
 export const GENERATOR_VERSION = 2;
+/** Echo worlds (Echo ≥ 1) use biome ores; their saves are stamped with this version. */
+export const GENERATOR_VERSION_BIOMES = 3;
+export function generatorVersion(echo: number): number {
+  return echo > 0 ? GENERATOR_VERSION_BIOMES : GENERATOR_VERSION;
+}
+/** Must match the number of render biomes (BIOMES in rendering/biome.ts). */
+export const BIOME_COUNT = 5;
 
 export interface WorldSpec {
   width: number;
@@ -12,6 +19,8 @@ export interface WorldSpec {
   seed: number;
   /** Number of hidden resonance cores. */
   cores: number;
+  /** Echo level (0 = original ores); selects the biome ore set. */
+  echo?: number;
 }
 
 export interface CoreSite {
@@ -66,7 +75,7 @@ export function coreSites(spec: WorldSpec): CoreSite[] {
   return out;
 }
 
-function baseMaterial(x: number, y: number, height: number, seed: number, surface: number): Mat {
+function baseMaterial(x: number, y: number, height: number, seed: number, surface: number, biome = 0): Mat {
   if (y < surface) return Mat.Air;
   const depth = (y - surface) / (height - surface);
   if (y > surface + 6) {
@@ -83,13 +92,20 @@ function baseMaterial(x: number, y: number, height: number, seed: number, surfac
   const wx = x + (valueNoise(x / 23, y / 23, seed ^ 0x7a1) - 0.5) * 26;
   const wy = y + (valueNoise(x / 23, y / 23, seed ^ 0x7a2) - 0.5) * 26;
   const cv = 1 - Math.abs(fbm(wx / 34, wy / 26, seed ^ 0xc4157a1, 3) * 2 - 1);
-  if (cv > 0.985 - depth * 0.02 && valueNoise(x / 45, y / 45, seed ^ 0xc41) > 0.36) return Mat.ResonanceCrystal;
+  // Biome 1 (Rote Wüste): crystals are rarer. Biome 4 (Goldene Kruste): harder rock.
+  const crystalCut = biome === 1 ? 0.992 : 0.985;
+  if (cv > crystalCut - depth * 0.02 && valueNoise(x / 45, y / 45, seed ^ 0xc41) > 0.36) return Mat.ResonanceCrystal;
+  if (biome === 1 || biome === 4) {
+    const gv = 1 - Math.abs(fbm(wx / 24, wy / 30, seed ^ (biome === 1 ? 0x61a5 : 0x601d), 2) * 2 - 1);
+    const cut = biome === 1 ? 0.972 : 0.976;
+    if (gv > cut - depth * 0.015 && valueNoise(x / 34, y / 34, seed ^ 0x6e1) > 0.4) return biome === 1 ? Mat.Glutstein : Mat.GoldVein;
+  }
   const ov = 1 - Math.abs(fbm(wy / 20, wx / 28, seed ^ 0x0e0e, 2) * 2 - 1);
   if (ov > 0.984 - depth * 0.015 && valueNoise(x / 30, y / 30, seed ^ 0x0e1) > 0.42) return Mat.UnstableOre;
   // Ore nodules strung along a few veins.
   if (ov > 0.93 && hash01(x >> 1, y >> 1, seed ^ 0x0e2) > 0.95) return Mat.UnstableOre;
   const t = depth + (hash01(x, y, seed ^ 0xd3) - 0.5) * 0.15 + (fbm(x / 30, y / 30, seed ^ 0xde, 2) - 0.5) * 0.4;
-  return t > 0.35 ? Mat.DenseRock : Mat.Stone;
+  return t > (biome === 4 ? 0.18 : 0.35) ? Mat.DenseRock : Mat.Stone;
 }
 
 export interface VaultSite {
@@ -139,9 +155,10 @@ export function generateMaterials(spec: WorldSpec, onProgress?: (p: number) => v
   const { width, height } = spec;
   const seed = spec.seed >>> 0;
   const out = new Uint8Array(width * height);
+  const biome = (spec.echo ?? 0) % BIOME_COUNT;
   for (let x = 0; x < width; x++) {
     const surf = surfaceAt(x, height, seed);
-    for (let y = 0; y < height; y++) out[y * width + x] = baseMaterial(x, y, height, seed, surf);
+    for (let y = 0; y < height; y++) out[y * width + x] = baseMaterial(x, y, height, seed, surf, biome);
     if (onProgress && (x & 63) === 63) onProgress(x / width);
   }
   for (const v of vaultSites({ ...spec, seed })) stampVault(out, width, v);
