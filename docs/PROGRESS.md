@@ -132,3 +132,6 @@ Next: M2 (see docs/TASKS.md).
 - Found a real bug: Autopilot stalled on the last core cell when the drone sat in the hollowed core cavity (steered at the core centre, gave up at dist < 3). Fix: steer at the nearest remaining core cell (`nearestCoreCell`). Regression e2e test fails without the fix.
 - GoldVein tweaked to durability 130 / value 24.
 - Autopilot minutes Echo 0-5 (ideal buying, granted at t=0, optimistic): 25.1, 29.6, 43, 56.8, 49.7, 58.2. Real play is slower (~1 h reported for Echo 0).
+
+## World transition
+- New world: fade to black (0.65 s) -> generate in the dark -> title card "ECHO n · BIOME" + cores/depth -> fade in. `#world-fade` in `index.html`, logic in `main.ts`; respects `prefers-reduced-motion`. e2e covers the title card.

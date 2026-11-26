@@ -452,3 +452,18 @@ html, body {
 .menu-echo { color: #d58cff; letter-spacing: 0.1em; font-size: 14px; margin: 6px 0; }
 
 .toast { top: 46px; }
+
+/* World transition: fade to black, title card, fade in. */
+#world-fade {
+  position: fixed; inset: 0; z-index: 60; background: #05030a; opacity: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  transition: opacity 0.6s ease; pointer-events: all; text-align: center;
+}
+#world-fade.show { opacity: 1; }
+#world-fade.slow { transition-duration: 1s; }
+#world-fade-title { font-size: clamp(22px, 5vw, 48px); letter-spacing: 0.3em; color: var(--orange); opacity: 0; transition: opacity 0.5s; }
+#world-fade-sub { margin-top: 14px; letter-spacing: 0.2em; color: var(--muted); opacity: 0; transition: opacity 0.5s 0.15s; }
+#world-fade.title #world-fade-title, #world-fade.title #world-fade-sub { opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  #world-fade, #world-fade.slow, #world-fade-title, #world-fade-sub { transition: none; }
+}

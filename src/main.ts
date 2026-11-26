@@ -212,11 +212,41 @@ async function boot(): Promise<void> {
       location.reload();
     })();
   };
+  // World transition: fade to black -> generate in the dark -> title card -> fade in.
+  const fadeEl = document.getElementById('world-fade') as HTMLElement;
+  const fadeTitle = document.getElementById('world-fade-title') as HTMLElement;
+  const fadeSub = document.getElementById('world-fade-sub') as HTMLElement;
+  const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, reduced ? 0 : ms));
+  const fadeToBlack = async (): Promise<void> => {
+    fadeEl.classList.remove('hidden', 'slow', 'title');
+    void fadeEl.offsetWidth;
+    fadeEl.classList.add('show');
+    await wait(650);
+  };
+  const fadeFromBlack = async (title: string, sub: string): Promise<void> => {
+    fadeTitle.textContent = title;
+    fadeSub.textContent = sub;
+    fadeEl.classList.add('title');
+    await wait(1700);
+    fadeEl.classList.add('slow');
+    fadeEl.classList.remove('show', 'title');
+    await wait(1050);
+    fadeEl.classList.add('hidden');
+  };
   ui.handlers.onNewWorld = () => {
     const next = (game?.progression.prestige ?? 0) + 1;
     const pr = game?.progression;
     const carry = pr ? { levels: Object.fromEntries(ECHO_IDS.map((id) => [id, pr.levels[id]])) as Partial<Record<UpgradeId, number>>, echo: pr.echo } : undefined;
-    void startGame(null, next, carry).catch(fatal);
+    void (async () => {
+      await fadeToBlack();
+      await startGame(null, next, carry);
+      const g = game as Game | null;
+      await fadeFromBlack(`ECHO ${next} · ${biomeFor(next).name}`, g ? `${g.cores.length} KERNE · ${g.world.height} M TIEF` : '');
+    })().catch((e) => {
+      fadeEl.classList.add('hidden');
+      fatal(e);
+    });
   };
   ui.handlers.onEchoShop = () => {
     blockingOverlay = false;
