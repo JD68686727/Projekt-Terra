@@ -41,7 +41,7 @@ export const MATERIALS: readonly MaterialDef[] = [
   { id: Mat.TitaniumMatrix, name: 'Titanium Matrix', durability: 2500, value: 40, color: 0x8c9bb0, variation: 0.06, emissive: false },
   { id: Mat.CoreMaterial, name: 'Core Material', durability: 20000, value: 50, color: 0xd040ff, variation: 0.3, emissive: true },
   { id: Mat.Glutstein, name: 'Glutstein', durability: 35, value: 14, color: 0xe03a30, variation: 0.22, emissive: true },
-  { id: Mat.GoldVein, name: 'Gold Vein', durability: 130, value: 24, color: 0xf2c33c, variation: 0.18, emissive: false },
+  { id: Mat.GoldVein, name: 'Gold Vein', durability: 130, value: 18, color: 0xf2c33c, variation: 0.18, emissive: false },
   { id: Mat.Emerald, name: 'Emerald Root', durability: 55, value: 16, color: 0x2fd47a, variation: 0.25, emissive: true },
   { id: Mat.FrostCrystal, name: 'Frost Crystal', durability: 25, value: 9, color: 0x9fdcff, variation: 0.2, emissive: true },
 ];

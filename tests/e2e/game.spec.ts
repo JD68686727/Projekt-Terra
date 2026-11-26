@@ -358,6 +358,49 @@ test('progress survives a page reload (IndexedDB) and Continue restores it', asy
   expect(errors).toEqual([]);
 });
 
+test('an Echo world survives save and Continue (biome, cores, depth, echo fragments)', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=4242&echo=3');
+  const snap = () => page.evaluate(() => {
+    const g = window.__game!;
+    const c0 = g.cores[0];
+    return {
+      prestige: g.progression.prestige,
+      echo: g.progression.echo,
+      echoLevel: g.progression.levels.echoMp ?? 0,
+      cores: g.cores.length,
+      remaining: g.cores.map((c) => c.remaining),
+      height: g.world.height,
+      generator: g.generatorVersion,
+      goal: document.getElementById('hud-goal')!.textContent,
+      c0,
+    };
+  });
+  await page.evaluate(() => {
+    const g = window.__game!;
+    g.progression.echo = 11;
+    g.progression.levels.echoMp = 2;
+    const s = g.cores[0].site;
+    for (let y = s.y - 3; y <= s.y + 3; y++) for (let x = s.x - 3; x <= s.x + 3; x++) g.world.damage(x, y, 1e9);
+  });
+  await page.keyboard.press('Escape');
+  const { c0: _a, ...before } = await snap();
+  expect(before.prestige).toBe(3);
+  expect(before.cores).toBe(6);
+  expect(before.height).toBeGreaterThan(2000);
+  await page.locator('#btn-save').click();
+  await expect(page.locator('#toast')).toContainText('gespeichert');
+  // Reload WITHOUT the ?echo parameter: everything must come from the save.
+  await page.goto(URL + '?seed=1');
+  await expect(page.locator('#btn-continue')).toBeVisible();
+  await page.locator('#btn-continue').click();
+  await page.waitForFunction(() => !!window.__game);
+  await expect(page.locator('#loading')).toBeHidden();
+  const { c0: _b, ...after } = await snap();
+  expect(after).toEqual(before);
+  expect(errors).toEqual([]);
+});
+
 test('corrupted save is reported and does not crash the game', async ({ page }) => {
   await start(page, URL + '?seed=99');
   await page.keyboard.press('Escape');

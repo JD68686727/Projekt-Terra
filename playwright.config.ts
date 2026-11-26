@@ -1,4 +1,4 @@
-import { defineConfig } from '@playwright/test';
+import { defineConfig, devices } from '@playwright/test';
 
 // Playwright's browser CDN is not reachable in the CI sandbox; use a locally
 // installed Chrome when CHROME_PATH (or /usr/bin/google-chrome) exists.
@@ -23,5 +23,12 @@ export default defineConfig({
     url: 'http://localhost:4173/games/terra/index.html',
     reuseExistingServer: true,
   },
-  projects: [{ name: 'chromium' }],
+  // CROSS_BROWSER=1 adds Firefox and WebKit (needs `npx playwright install firefox webkit`; not possible in the CI sandbox).
+  projects: process.env.CROSS_BROWSER
+    ? [
+        { name: 'chromium' },
+        { name: 'firefox', use: { ...devices['Desktop Firefox'], launchOptions: {} } },
+        { name: 'webkit', use: { ...devices['Desktop Safari'], launchOptions: {} } },
+      ]
+    : [{ name: 'chromium' }],
 });

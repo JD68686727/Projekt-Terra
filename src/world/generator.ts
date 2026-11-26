@@ -65,7 +65,7 @@ export function coreSites(spec: WorldSpec): CoreSite[] {
     const x = Math.floor(width * fx);
     const y = Math.floor(top + (height - top) * fy);
     out.push({
-      shield: CORE_SHIELDS[Math.min(i, CORE_SHIELDS.length - 1)] * (1 + SHIELD_PER_ECHO * (spec.echo ?? 0)),
+      shield: CORE_SHIELDS[Math.min(i, CORE_SHIELDS.length - 1)] * shieldFactor(spec.echo ?? 0),
       x: Math.min(width - shell - 5, Math.max(shell + 5, x)),
       y: Math.min(height - shell - 5, y),
       radius,
@@ -184,6 +184,11 @@ function stampCore(out: Uint8Array, width: number, height: number, seed: number,
 
 /** Extra shield per Echo level (multiplier on top of the per-core shield). */
 export const SHIELD_PER_ECHO = 0.5;
+/** Extra shield per Echo beyond 3 (core count is capped at 6, so later worlds must get tougher cores). */
+export const SHIELD_LATE_BONUS = 0.8;
+export function shieldFactor(echo: number): number {
+  return 1 + SHIELD_PER_ECHO * echo + SHIELD_LATE_BONUS * Math.max(0, echo - 3);
+}
 
 /** Damage divisor per core index (deeper cores are shielded harder). */
 export const CORE_SHIELDS = [1, 3, 6, 10, 16, 26];

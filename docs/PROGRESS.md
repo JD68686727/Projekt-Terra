@@ -147,3 +147,8 @@ Next: M2 (see docs/TASKS.md).
   - Auto-Emitter: places a free emitter at the rig if >= 70 solid cells around and no emitter within 25 cells.
 - e2e: swarm + emitter placed by the autopilot; control test without the upgrades. Auto-Fracture has no e2e (needs a resonance setup).
 - Autopilot minutes Echo 0-2 with them: 26 / 29.7 / 43.8 (before 25.1 / 29.6 / 43) - pacing unchanged. Gold per pixel not changed.
+
+## Echo save test + late-Echo calibration + cross-browser hook
+- e2e: Echo-3 world survives save + Continue (reload without `?echo`, everything from the save).
+- Calibration: GoldVein value 24 -> 18; core shield factor = 1 + 0.5*echo + 0.8*max(0, echo-3) (`shieldFactor`). Autopilot minutes Echo 0-5: 26.1 / 29.7 / 45 / 56 / 59.6 / 70.8 (monotonic).
+- `npm run test:e2e:cross` (CROSS_BROWSER=1) adds Firefox + WebKit. NOT run: browsers cannot be downloaded in the sandbox.

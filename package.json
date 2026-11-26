@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:e2e:cross": "CROSS_BROWSER=1 playwright test",
     "test:e2e": "playwright test",
     "bench": "node scripts/bench.mjs 1024x2048",
     "package": "npm run build && node scripts/package.mjs"
