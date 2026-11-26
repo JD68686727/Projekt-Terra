@@ -21,6 +21,12 @@ export const BIOMES: readonly Biome[] = [
   { name: 'GOLDENE KRUSTE', stone: { h: 38, s: 0.36 }, moss: { h: 58, s: 0.5 }, sky: 125 },
 ];
 
+/** UI accent colour per biome (CSS), used by the world transition. */
+const BIOME_ACCENT = ['#b78cff', '#ff6a3d', '#46e890', '#7fe3ff', '#ffd24a'];
+export function biomeAccent(prestige: number): string {
+  return BIOME_ACCENT[Math.max(0, Math.floor(prestige)) % BIOME_ACCENT.length];
+}
+
 export function biomeFor(prestige: number): Biome {
   return BIOMES[Math.max(0, Math.floor(prestige)) % BIOMES.length];
 }

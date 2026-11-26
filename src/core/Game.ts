@@ -135,6 +135,11 @@ export class Game {
   echoGained = 0;
   /** Fired once when every core is destroyed. */
   onVictory: (() => void) | null = null;
+  /** Fired the moment the last core breaks (the final screen follows after the finale). */
+  onFinale: (() => void) | null = null;
+  private finale = 0; // real seconds since the last core broke (0 = inactive)
+  private finaleRing = 0;
+  private finaleAt = { x: 0, y: 0 };
   /** Fired when a core cell is destroyed (for UI feedback). */
   onCoreHit: ((core: CoreState) => void) | null = null;
   /** Fired when one core is fully destroyed (index, cores destroyed so far). */
@@ -395,7 +400,8 @@ export class Game {
     let steps = 0;
     if (!this.paused) {
       this.handleFrameInput();
-      steps = this.loop.advance(dt, (h) => this.tick(h));
+      if (this.finale > 0) this.updateFinale(dt);
+      steps = this.loop.advance(this.finale > 0 ? dt * 0.3 : dt, (h) => this.tick(h));
     }
     const s1 = performance.now();
 
@@ -741,6 +747,30 @@ export class Game {
     }
   }
 
+  private static readonly FINALE_RINGS = [0, 0.3, 0.6, 1.0, 1.5];
+  private static readonly FINALE_LENGTH = 2.6;
+
+  /** Slow-motion shockwave finale after the last core broke; hands over to the final screen when done. */
+  private updateFinale(dt: number): void {
+    this.finale += dt;
+    this.shake = Math.max(this.shake, 2.4);
+    while (this.finaleRing < Game.FINALE_RINGS.length && this.finale >= Game.FINALE_RINGS[this.finaleRing]) {
+      const k = this.finaleRing++;
+      const n = 110;
+      for (let i = 0; i < n; i++) {
+        const a = (i / n) * Math.PI * 2 + k * 0.4;
+        const v = 45 + k * 32;
+        const col = i % 4 === 0 ? 0xffffff : i % 4 === 1 ? 0xd040ff : i % 4 === 2 ? 0x29d8f0 : 0xffd24a;
+        this.particles.emit(this.finaleAt.x, this.finaleAt.y, Math.cos(a) * v, Math.sin(a) * v, col, 1.0 + k * 0.15, 1, 4, true);
+      }
+      if (k > 0) this.sfx.resonance();
+    }
+    if (this.finale >= Game.FINALE_LENGTH) {
+      this.finale = 0;
+      this.onVictory?.();
+    }
+  }
+
   private onCoreCellDestroyed(x: number, y: number): void {
     for (const c of this.cores) {
       const r = c.site.radius + 1;
@@ -761,7 +791,11 @@ export class Game {
         this.victorySeen = true;
         this.echoGained = this.progression.echoAward(this.cores.length);
         this.progression.echo += this.echoGained;
-        this.onVictory?.();
+        this.finale = 0.0001;
+        this.finaleRing = 0;
+        this.finaleAt = { x: c.site.x, y: c.site.y };
+        this.sfx.finale();
+        this.onFinale?.();
       }
       return;
     }

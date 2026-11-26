@@ -2,11 +2,12 @@ import { Application } from 'pixi.js';
 import '@fontsource/pixelify-sans/400.css';
 import '@fontsource/pixelify-sans/700.css';
 import { Game } from './core/Game';
+import { Warp } from './ui/Warp';
 import { Ui } from './ui/Ui';
 import { QUALITY_PRESETS, loadSettings } from './ui/settings';
 import { createPlatformAdapter } from './platform/PlatformAdapter';
 import { GAME_TITLE, CORE_COUNT, coreCountFor, worldHeightFor, DEFAULT_WORLD_WIDTH } from './config/meta';
-import { biomeFor } from './rendering/biome';
+import { biomeAccent, biomeFor } from './rendering/biome';
 import { generateMaterialsAsync } from './world/generateAsync';
 import { generatorVersion } from './world/generator';
 import { createSaveStore, SaveStore } from './storage/SaveStore';
@@ -176,6 +177,7 @@ async function boot(): Promise<void> {
     g.sfx.unlock();
     g.sfx.setVolume(settings.volume);
     if (settings.muted && !g.sfx.muted) ui.toggleMute();
+    g.onFinale = () => flash();
     g.onCoreDestroyed = (_i, done) => {
       if (done < g.cores.length) ui.toast(`Resonanzkern ${done}/${g.cores.length} zerstört! Der Scanner zeigt den nächsten.`, false, 5000);
     };
@@ -212,26 +214,43 @@ async function boot(): Promise<void> {
       location.reload();
     })();
   };
-  // World transition: fade to black -> generate in the dark -> title card -> fade in.
+  // World transition: warp streaks in the next biome's colour -> generate underneath -> brake, flash, title card -> fade in.
   const fadeEl = document.getElementById('world-fade') as HTMLElement;
   const fadeTitle = document.getElementById('world-fade-title') as HTMLElement;
   const fadeSub = document.getElementById('world-fade-sub') as HTMLElement;
+  const warp = new Warp(fadeEl);
   const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
   const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, reduced ? 0 : ms));
-  const fadeToBlack = async (): Promise<void> => {
+  // The flash layer only exists in the DOM while it plays.
+  const flash = (): void => {
+    const f = document.createElement('div');
+    f.id = 'flash';
+    f.className = 'go';
+    f.addEventListener('animationend', () => f.remove());
+    fadeEl.parentElement?.append(f);
+    if (reduced) f.remove();
+  };
+  const fadeToBlack = async (accent: string): Promise<void> => {
+    fadeEl.style.setProperty('--accent', accent);
     fadeEl.classList.remove('hidden', 'slow', 'title');
     void fadeEl.offsetWidth;
     fadeEl.classList.add('show');
-    await wait(650);
+    if (!reduced) warp.start(accent);
+    game?.sfx.warp();
+    await wait(1800);
   };
   const fadeFromBlack = async (title: string, sub: string): Promise<void> => {
     fadeTitle.textContent = title;
     fadeSub.textContent = sub;
+    warp.brake();
+    flash();
+    game?.sfx.arrive();
     fadeEl.classList.add('title');
-    await wait(1700);
+    await wait(2600);
     fadeEl.classList.add('slow');
     fadeEl.classList.remove('show', 'title');
-    await wait(1050);
+    await wait(1300);
+    warp.stop();
     fadeEl.classList.add('hidden');
   };
   ui.handlers.onNewWorld = () => {
@@ -239,11 +258,12 @@ async function boot(): Promise<void> {
     const pr = game?.progression;
     const carry = pr ? { levels: Object.fromEntries(ECHO_IDS.map((id) => [id, pr.levels[id]])) as Partial<Record<UpgradeId, number>>, echo: pr.echo } : undefined;
     void (async () => {
-      await fadeToBlack();
+      await fadeToBlack(biomeAccent(next));
       await startGame(null, next, carry);
       const g = game as Game | null;
       await fadeFromBlack(`ECHO ${next} · ${biomeFor(next).name}`, g ? `${g.cores.length} KERNE · ${g.world.height} M TIEF` : '');
     })().catch((e) => {
+      warp.stop();
       fadeEl.classList.add('hidden');
       fatal(e);
     });

@@ -142,6 +142,64 @@ export class Sfx {
     n.start(now, 0, 0.45);
   }
 
+  /** Rising whoosh for the world warp. */
+  warp(): void {
+    if (!this.ctx || !this.noise) return;
+    const now = this.ctx.currentTime;
+    const n = this.ctx.createBufferSource();
+    n.buffer = this.noise;
+    n.loop = true;
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.Q.value = 2;
+    bp.frequency.setValueAtTime(200, now);
+    bp.frequency.exponentialRampToValueAtTime(5000, now + 1.6);
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.5, now + 1.4);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.8);
+    n.connect(bp).connect(g).connect(this.master!);
+    n.start(now);
+    n.stop(now + 1.85);
+  }
+
+  /** Warm major chord for arriving in a new world. */
+  arrive(): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    [261.6, 329.6, 392, 523.3].forEach((f, i) => {
+      const o = this.ctx!.createOscillator();
+      o.type = i === 3 ? 'triangle' : 'sine';
+      o.frequency.value = f;
+      const g = this.ctx!.createGain();
+      g.gain.setValueAtTime(0.0001, now + i * 0.07);
+      g.gain.exponentialRampToValueAtTime(0.16, now + 0.25 + i * 0.07);
+      g.gain.exponentialRampToValueAtTime(0.001, now + 2.6);
+      o.connect(g).connect(this.master!);
+      o.start(now + i * 0.07);
+      o.stop(now + 2.7);
+    });
+  }
+
+  /** Deep boom + glass shimmer when the last core breaks. */
+  finale(): void {
+    this.pulse();
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    for (let i = 0; i < 6; i++) {
+      const o = this.ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 880 * Math.pow(1.5, i % 4) * (1 + i * 0.01);
+      const g = this.ctx.createGain();
+      g.gain.setValueAtTime(0.0001, now + i * 0.18);
+      g.gain.exponentialRampToValueAtTime(0.14, now + i * 0.18 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.001, now + i * 0.18 + 1.2);
+      o.connect(g).connect(this.master!);
+      o.start(now + i * 0.18);
+      o.stop(now + i * 0.18 + 1.25);
+    }
+  }
+
   private lastChime = 0;
 
   /** Glassy chime for resonance; heavily rate-limited (chains hit many cells). */

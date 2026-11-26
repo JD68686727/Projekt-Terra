@@ -135,3 +135,7 @@ Next: M2 (see docs/TASKS.md).
 
 ## World transition
 - New world: fade to black (0.65 s) -> generate in the dark -> title card "ECHO n · BIOME" + cores/depth -> fade in. `#world-fade` in `index.html`, logic in `main.ts`; respects `prefers-reduced-motion`. e2e covers the title card.
+
+## Finale + warp (spectacle pass)
+- Last core: 2.6 s slow-motion finale (x0.3), 5 shockwave rings, white flash, boom/glass SFX, then the final screen (`Game.updateFinale`, `onFinale`).
+- New world: warp streaks in the next biome's accent colour (`ui/Warp.ts`, canvas/flash elements exist in the DOM only while running), arrival flash + chord, glowing title card. Reduced motion: no animation.
