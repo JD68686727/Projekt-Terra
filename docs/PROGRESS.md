@@ -139,3 +139,11 @@ Next: M2 (see docs/TASKS.md).
 ## Finale + warp (spectacle pass)
 - Last core: 2.6 s slow-motion finale (x0.3), 5 shockwave rings, white flash, boom/glass SFX, then the final screen (`Game.updateFinale`, `onFinale`).
 - New world: warp streaks in the next biome's accent colour (`ui/Warp.ts`, canvas/flash elements exist in the DOM only while running), arrival flash + chord, glowing title card. Reduced motion: no animation.
+
+## More automation
+- New Auto upgrades (group Auto): `autoNano` (4200 MP, needs Nano), `autoFracture` (7000, needs Fracture), `autoEmitter` (2500, needs Emitter). Logic in `Game.autoSystems` (every 0.5 s, bounded: <= 20 candidate spots x 81 cells).
+  - Auto-Schwarm: deploys on the densest spot 6-46 cells below / +-50 beside the rig; re-deploys when idle >= 1.5 s or the rig is > 100 cells away.
+  - Auto-Fracture: places a charge at the beam hit when >= 4 resonant and >= 50 solid cells lie within 5 cells.
+  - Auto-Emitter: places a free emitter at the rig if >= 70 solid cells around and no emitter within 25 cells.
+- e2e: swarm + emitter placed by the autopilot; control test without the upgrades. Auto-Fracture has no e2e (needs a resonance setup).
+- Autopilot minutes Echo 0-2 with them: 26 / 29.7 / 43.8 (before 25.1 / 29.6 / 43) - pacing unchanged. Gold per pixel not changed.

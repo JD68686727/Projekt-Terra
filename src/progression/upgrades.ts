@@ -15,6 +15,9 @@ export type UpgradeId =
   | 'smartTarget'
   | 'autoPulse'
   | 'autoDrill'
+  | 'autoNano'
+  | 'autoFracture'
+  | 'autoEmitter'
   | 'emitterUnlock'
   | 'emitterCount'
   | 'emitterPower'
@@ -68,6 +71,9 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'smartTarget', group: 'auto', name: 'Materialerkennung', desc: 'Laser und Autopilot bevorzugen wertvolles Material', baseCost: 1800, growth: 1, maxLevel: 1, requires: 'autoTarget' },
   { id: 'autoPulse', group: 'auto', name: 'Auto-Pulse', desc: 'Autopilot löst den Pulse selbst aus, sobald er geladen ist', baseCost: 3500, growth: 1, maxLevel: 1, requires: 'pulseUnlock' },
   { id: 'autoDrill', group: 'auto', name: 'Auto-Bohrer', desc: 'Autopilot feuert Bohrraketen in Flugrichtung, wenn der Weg blockiert ist', baseCost: 5500, growth: 1, maxLevel: 1, requires: 'drillUnlock' },
+  { id: 'autoNano', group: 'auto', name: 'Auto-Schwarm', desc: 'Autopilot setzt den Nanoschwarm selbst und zieht ihn nach, sobald seine Zone abgetragen ist', baseCost: 4200, growth: 1, maxLevel: 1, requires: 'nanoUnlock' },
+  { id: 'autoFracture', group: 'auto', name: 'Auto-Fracture', desc: 'Autopilot zündet Bruchladungen selbst, wenn viel Resonanzmaterial in Reichweite liegt', baseCost: 7000, growth: 1, maxLevel: 1, requires: 'fractureUnlock' },
+  { id: 'autoEmitter', group: 'auto', name: 'Auto-Emitter', desc: 'Autopilot platziert freie Emitter selbst an materialreichen Stellen', baseCost: 2500, growth: 1, maxLevel: 1, requires: 'emitterUnlock' },
   { id: 'emitterUnlock', group: 'auto', name: 'Laser-Emitter', desc: 'Stationärer Auto-Laser [E] platziert', baseCost: 25, growth: 1, maxLevel: 1, currency: 'rf' },
   { id: 'emitterCount', group: 'auto', name: 'Emitter-Slots', desc: '+1 Emitter', baseCost: 40, growth: 1.8, maxLevel: 5, currency: 'rf', requires: 'emitterUnlock' },
   { id: 'emitterPower', group: 'auto', name: 'Emitter-Leistung', desc: '+30 % Emitter-Schaden', baseCost: 700, growth: 2.1, maxLevel: 20, requires: 'emitterUnlock' },

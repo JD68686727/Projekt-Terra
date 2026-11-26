@@ -4,7 +4,7 @@ import { World } from '../world/World';
 import { CoreSite, generatorVersion, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
 import { ECHO_IDS, type UpgradeId } from '../progression/upgrades';
-import { MATERIALS, Mat } from '../world/materials';
+import { MATERIALS, Mat, isResonant } from '../world/materials';
 import { hash01 } from '../world/rng';
 import { TerrainRenderer } from '../rendering/TerrainRenderer';
 import { Camera } from '../rendering/Camera';
@@ -365,6 +365,75 @@ export class Game {
     return true;
   }
 
+  private autoTimer = 0;
+  private nanoIdle = 0;
+
+  /** Solid (non-air) cells in a square around (cx, cy); optionally also counts resonant ones. */
+  private solidAround(cx: number, cy: number, r: number): { solid: number; resonant: number } {
+    let solid = 0;
+    let resonant = 0;
+    for (let y = cy - r; y <= cy + r; y++) {
+      for (let x = cx - r; x <= cx + r; x++) {
+        const m = this.world.getMat(x, y);
+        if (m === Mat.Air || m === Mat.CoreMaterial) continue;
+        solid++;
+        if (isResonant(m)) resonant++;
+      }
+    }
+    return { solid, resonant };
+  }
+
+  /** Autopilot extras (Auto-Schwarm / -Fracture / -Emitter); evaluated twice a second, all work bounded. */
+  private autoSystems(h: number): void {
+    this.autoTimer -= h;
+    if (this.autoTimer > 0) return;
+    this.autoTimer = 0.5;
+    const p = this.progression;
+    const dx = Math.floor(this.drone.x);
+    const dy = Math.floor(this.drone.y);
+
+    if (p.level('autoNano') > 0 && p.nanoUnlocked()) {
+      let busy = 0;
+      if (this.nano.active) for (let i = 0; i < Math.floor(this.nano.stats.count); i++) busy += this.nano.cutting[i];
+      this.nanoIdle = this.nano.active && busy === 0 ? this.nanoIdle + 0.5 : 0;
+      const far = this.nano.active && Math.hypot(this.nano.anchorX - this.drone.x, this.nano.anchorY - this.drone.y) > 100;
+      if (!this.nano.active || this.nanoIdle >= 1.5 || far) {
+        // Candidate spots one layer below / beside the rig (the drone itself works the layer above).
+        let best = 0;
+        let bx = 0;
+        let by = 0;
+        for (let i = 0; i < 20; i++) {
+          const cx = dx + Math.round((hash01(i, Math.floor(this.time), 41) - 0.5) * 100);
+          const cy = dy + 6 + Math.round(hash01(i, Math.floor(this.time), 43) * 40);
+          if (this.world.getMat(cx, cy) === Mat.Air) continue;
+          const sc = this.solidAround(cx, cy, 4).solid;
+          if (sc > best) {
+            best = sc;
+            bx = cx;
+            by = cy;
+          }
+        }
+        if (best >= 30) {
+          this.nano.deploy(bx + 0.5, by + 0.5);
+          this.nanoIdle = 0;
+        }
+      }
+    }
+
+    if (p.level('autoFracture') > 0 && p.fractureUnlocked() && this.fracture.ready && this.laserOn && this.beam.hit) {
+      const bx = Math.floor(this.beam.endX);
+      const by = Math.floor(this.beam.endY);
+      const a = this.solidAround(bx, by, 5);
+      if (a.resonant >= 4 && a.solid >= 50 && this.fracture.place(this.drone.x, this.drone.y, this.beam.endX, this.beam.endY)) this.sfx.purchase();
+    }
+
+    if (p.level('autoEmitter') > 0 && this.emitters.length < p.maxEmitters() &&
+        !this.emitters.some((e) => Math.hypot(e.x - this.drone.x, e.y - this.drone.y) < 25) &&
+        this.solidAround(dx, dy, 7).solid >= 70) {
+      this.placeEmitter();
+    }
+  }
+
   /** Places an emitter at the rig. At capacity, the oldest one is relocated. */
   placeEmitter(): boolean {
     const max = this.progression.maxEmitters();
@@ -559,6 +628,7 @@ export class Game {
         this.sfx.blast();
       }
     }
+    if (this.autoMode) this.autoSystems(h);
     if (this.laserOn) {
       this.laser.fire(this.world, this.drone.x, this.drone.y, tx, ty, h, this.beam);
       if (this.beam.hit && hash01(Math.floor(this.time * 60), 7, 1) < 0.6) {

@@ -265,6 +265,49 @@ test('autopilot fires Pulse and Drill by itself with the Auto upgrades', async (
   expect(errors).toEqual([]);
 });
 
+test('autopilot deploys the swarm, places emitters and re-deploys by itself', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=777');
+  await page.evaluate(() => {
+    const g = window.__game!;
+    const l = g.progression.levels;
+    l.autoTarget = 1;
+    l.nanoUnlock = 1;
+    l.autoNano = 1;
+    l.emitterUnlock = 1;
+    l.emitterCount = 2;
+    l.autoEmitter = 1;
+    l.fractureUnlock = 1;
+    l.autoFracture = 1;
+    l.laserDamage = 6;
+    g.applyUpgrades();
+    g.autoMode = true;
+  });
+  await page.waitForFunction(() => window.__game!.nano.active, null, { timeout: 30000 });
+  await page.waitForFunction(() => window.__game!.emitters.length >= 1, null, { timeout: 60000 });
+  expect(await page.evaluate(() => window.__game!.stats.destroyed)).toBeGreaterThan(30);
+  expect(errors).toEqual([]);
+});
+
+test('without the Auto upgrades the autopilot leaves swarm and emitters alone', async ({ page }) => {
+  const errors = collectErrors(page);
+  await start(page, URL + '?seed=777');
+  await page.evaluate(() => {
+    const g = window.__game!;
+    const l = g.progression.levels;
+    l.autoTarget = 1;
+    l.nanoUnlock = 1;
+    l.emitterUnlock = 1;
+    l.emitterCount = 2;
+    l.laserDamage = 6;
+    g.applyUpgrades();
+    g.autoMode = true;
+  });
+  await page.waitForTimeout(6000);
+  expect(await page.evaluate(() => [window.__game!.nano.active, window.__game!.emitters.length])).toEqual([false, 0]);
+  expect(errors).toEqual([]);
+});
+
 test('simulation keeps running in the background when the tab is hidden', async ({ page }) => {
   const errors = collectErrors(page);
   await start(page);
