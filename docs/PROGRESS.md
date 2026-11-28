@@ -152,3 +152,13 @@ Next: M2 (see docs/TASKS.md).
 - e2e: Echo-3 world survives save + Continue (reload without `?echo`, everything from the save).
 - Calibration: GoldVein value 24 -> 18; core shield factor = 1 + 0.5*echo + 0.8*max(0, echo-3) (`shieldFactor`). Autopilot minutes Echo 0-5: 26.1 / 29.7 / 45 / 56 / 59.6 / 70.8 (monotonic).
 - `npm run test:e2e:cross` (CROSS_BROWSER=1) adds Firefox + WebKit. NOT run: browsers cannot be downloaded in the sandbox.
+
+## Core fights per biome (`src/world/CoreBehavior.ts`)
+Each biome has its own core behaviour; the player gets a toast when first approaching a core, and the core ring shows the state.
+- Erde: **Puls-Schild** - 8 s cycle, 3 s open window (damage x1.8), otherwise x0.45 (mean ~1).
+- Rote Wüste: **Überhitzung** - sustained fire fills heat (6 s); at 100 % the core vents (3 s, x0.25); pauses cool it; x1.25 while heating.
+- Dschungel: **Regeneration** - 3 cells/s regrow after 2 s without damage.
+- Eiswelt: **Phasenwechsel** - frost nova at 2/3 and 1/3 core mass: 4 s lock (x1/6) + shockwave.
+- Goldwelt: **Rotierende Lücke** - 70 deg arc rotating 25 deg/s: x3 inside, x0.5 outside.
+- Hook: `World.onCoreDamage`, shield = site.shield / `behavior.multAt`. State is not saved (pattern restarts after load). The Echo-0/pacing bot helper does not use behaviours (means ~1).
+- Autopilot minutes Echo 0-5: 26.3 / 31.6 / 45 / 56.4 / 59 / 76.9. Echo 5 (second pulse world) jumps +18 min.

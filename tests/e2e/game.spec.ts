@@ -401,6 +401,22 @@ test('an Echo world survives save and Continue (biome, cores, depth, echo fragme
   expect(errors).toEqual([]);
 });
 
+for (const [echo, mode, word] of [[0, 'pulse', 'PULS-SCHILD'], [1, 'heat', 'ÜBERHITZUNG'], [2, 'regrow', 'REGENERATION'], [3, 'phases', 'PHASENWECHSEL'], [4, 'gap', 'LÜCKE']] as const) {
+  test(`core behaviour in biome ${echo} is ${mode} and announces itself`, async ({ page }) => {
+    const errors = collectErrors(page);
+    await start(page, URL + `?seed=555&echo=${echo}`);
+    expect(await page.evaluate(() => window.__game!.behavior.mode)).toBe(mode);
+    await page.evaluate(() => {
+      const g = window.__game!;
+      const s = g.cores[0].site;
+      g.drone.x = s.x;
+      g.drone.y = s.y - s.shell - 20;
+    });
+    await expect(page.locator('#toast')).toContainText(word, { timeout: 8000 });
+    expect(errors).toEqual([]);
+  });
+}
+
 test('corrupted save is reported and does not crash the game', async ({ page }) => {
   await start(page, URL + '?seed=99');
   await page.keyboard.press('Escape');

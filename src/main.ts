@@ -178,6 +178,7 @@ async function boot(): Promise<void> {
     g.sfx.setVolume(settings.volume);
     if (settings.muted && !g.sfx.muted) ui.toggleMute();
     g.onFinale = () => flash();
+    g.onCoreHint = (_mode, text) => ui.toast(text, false, 7000);
     g.onCoreDestroyed = (_i, done) => {
       if (done < g.cores.length) ui.toast(`Resonanzkern ${done}/${g.cores.length} zerstört! Der Scanner zeigt den nächsten.`, false, 5000);
     };

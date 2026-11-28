@@ -1,6 +1,7 @@
 import { Application, Container, Graphics, Sprite } from 'pixi.js';
 import { SPRITE_SCALE, sprites } from '../rendering/sprites';
 import { World } from '../world/World';
+import { CoreBehavior, CORE_HINTS, coreModeFor, GAP_WIDTH, type CoreMode } from '../world/CoreBehavior';
 import { CoreSite, generatorVersion, VaultSite, coreShieldLookup, coreSites, countCoreCells, generateWorld, surfaceY, vaultSites } from '../world/generator';
 import { SAVE_VERSION, SaveData, applySavedChunks, serializeChunks } from '../storage/saveFormat';
 import { ECHO_IDS, type UpgradeId } from '../progression/upgrades';
@@ -131,6 +132,11 @@ export class Game {
   }
   /** Echo level the terrain was generated with (0 for saves from before the biome ores). */
   private genEcho = 0;
+  /** Biome-specific core behaviour (pulse shield, overheat, regrowth, frost phases, rotating gap). */
+  behavior!: CoreBehavior;
+  /** Fired once per core when the player first comes close (text explains its behaviour). */
+  onCoreHint: ((mode: CoreMode, text: string) => void) | null = null;
+  private hintTimer = 0;
   /** Echo fragments awarded by the victory (for the victory screen). */
   echoGained = 0;
   /** Fired once when every core is destroyed. */
@@ -196,7 +202,14 @@ export class Game {
       const total = countCoreCells(this.world, site);
       this.cores.push({ site, total, remaining: total });
     }
-    this.world.coreShield = coreShieldLookup(this.cores.map((c) => c.site));
+    const sites = this.cores.map((c) => c.site);
+    this.world.coreShield = coreShieldLookup(sites);
+    this.behavior = new CoreBehavior(sites, coreModeFor(this.genEcho), this.world);
+    this.world.coreShield = (x, y) => {
+      const i = this.behavior.coreAt(x, y);
+      return i < 0 ? 1 : sites[i].shield / this.behavior.multAt(i, x, y);
+    };
+    this.world.onCoreDamage = (x, y) => this.behavior.damaged(this.behavior.coreAt(x, y));
 
     const cx = Math.floor(opts.worldWidth / 2);
     const startY = surfaceY(cx, this.world) - 12;
@@ -363,6 +376,38 @@ export class Game {
     this.autoMode = !this.autoMode;
     this.apReady = false;
     return true;
+  }
+
+  private updateCores(h: number): void {
+    this.behavior.update(h, this.world, this.cores, {
+      event: (i, kind) => {
+        const c = this.cores[i].site;
+        const ice = kind === 'nova';
+        this.shake = Math.max(this.shake, ice ? 2.2 : 1.8);
+        for (let k = 0; k < 90; k++) {
+          const a = (k / 90) * Math.PI * 2;
+          const v = 30 + (k % 3) * 18;
+          this.particles.emit(c.x, c.y, Math.cos(a) * v, Math.sin(a) * v, ice ? (k % 2 ? 0xbff6ff : 0xffffff) : k % 2 ? 0xff7a1a : 0xffd24a, 0.9, 1, 4, true);
+        }
+        this.sfx.pulse();
+      },
+      regrown: (i) => {
+        this.cores[i].remaining++;
+      },
+    });
+    this.hintTimer -= h;
+    if (this.hintTimer <= 0) {
+      this.hintTimer = 0.5;
+      for (let i = 0; i < this.cores.length; i++) {
+        const d = this.behavior.dyn[i];
+        const c = this.cores[i];
+        if (d.hinted || c.remaining === 0) continue;
+        if (Math.hypot(c.site.x - this.drone.x, c.site.y - this.drone.y) < c.site.shell + 45) {
+          d.hinted = true;
+          this.onCoreHint?.(d.mode, CORE_HINTS[d.mode]);
+        }
+      }
+    }
   }
 
   private autoTimer = 0;
@@ -533,6 +578,7 @@ export class Game {
   }
 
   private tick(h: number): void {
+    this.updateCores(h);
     this.time += h;
     this.playTime += h;
     let ax = this.input.axis(['KeyA', 'ArrowLeft'], ['KeyD', 'ArrowRight']);
@@ -1005,9 +1051,40 @@ export class Game {
       const s = c.site;
       if (s.x + s.shell < bx0 || s.x - s.shell > bx1 || s.y + s.shell < by0 || s.y - s.shell > by1) continue;
       const pulse = 0.5 + 0.5 * Math.sin(this.time * 3);
-      g.circle(s.x + 0.5, s.y + 0.5, s.shell + 2 + pulse * 1.5).stroke({ width: 0.6, color: 0xd040ff, alpha: 0.25 + 0.35 * pulse });
+      const ci = this.cores.indexOf(c);
+      const d = this.behavior.dyn[ci];
+      let col = 0xd040ff;
+      let alpha = 0.25 + 0.35 * pulse;
+      let width = 0.6;
+      if (d.mode === 'pulse') {
+        const open = d.mult > 1;
+        col = open ? 0x7fffd4 : 0x8a3dc0;
+        alpha = open ? 0.95 : 0.35;
+        width = open ? 1.4 : 0.9;
+      } else if (d.mode === 'heat') {
+        col = d.lock > 0 ? 0x6a6a8a : d.heat > 0.66 ? 0xff3b2a : d.heat > 0.33 ? 0xff9a2a : 0xd040ff;
+        alpha = d.lock > 0 ? 0.3 : 0.3 + 0.6 * d.heat;
+        width = 0.6 + d.heat * 1.2;
+      } else if (d.mode === 'regrow') {
+        const healing = d.idle > 2 && c.remaining < c.total;
+        col = healing ? 0x46e890 : 0xd040ff;
+        alpha = healing ? 0.5 + 0.4 * pulse : alpha;
+        width = healing ? 1.2 : 0.6;
+      } else if (d.mode === 'phases') {
+        col = d.lock > 0 ? 0xdff8ff : 0x7fe3ff;
+        alpha = d.lock > 0 ? 0.95 : 0.4;
+        width = d.lock > 0 ? 1.8 : 0.7;
+      }
+      g.circle(s.x + 0.5, s.y + 0.5, s.shell + 2 + pulse * 1.5).stroke({ width, color: col, alpha });
+      if (d.mode === 'gap') {
+        const r = s.shell + 2.5;
+        const a0 = d.gapAngle - GAP_WIDTH / 2;
+        g.moveTo(s.x + 0.5 + Math.cos(a0) * r, s.y + 0.5 + Math.sin(a0) * r)
+          .arc(s.x + 0.5, s.y + 0.5, r, a0, a0 + GAP_WIDTH)
+          .stroke({ width: 2.2, color: 0xfff1a0, alpha: 0.95 });
+      }
       for (let k = 1; k < s.shield; k++) {
-        g.circle(s.x + 0.5, s.y + 0.5, s.shell + 3 + k * 1.6).stroke({ width: 0.3, color: 0xd040ff, alpha: 0.18 });
+        g.circle(s.x + 0.5, s.y + 0.5, s.shell + 3 + k * 1.6).stroke({ width: 0.3, color: col, alpha: 0.18 });
       }
     }
     // Fracture charges (blinking)
